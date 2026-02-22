@@ -1,0 +1,13 @@
+services:
+  jibboo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jibboo
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+      - ./.secrets:/app/secrets:ro
