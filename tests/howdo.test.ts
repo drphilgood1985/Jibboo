@@ -70,6 +70,7 @@ describe("/howdo command", () => {
     expect(payload.content).toContain("`/play <text-or-url>`");
     expect(payload.content).toContain("`/video <text-or-url>`");
     expect(payload.content).toContain("`/playnext <input>`");
+    expect(payload.content).toContain("`/playlist <artist-or-genre>`");
     expect(payload.content).toContain("`/jibboo <instruction>`");
     expect(payload.content).toContain("Queue limit: 50 tracks.");
     expect(payload.content).toContain(`Run commands in <#${controlChannelId}>.`);

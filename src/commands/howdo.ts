@@ -6,6 +6,7 @@ const HOWDO_COMMANDS = [
   "`/play <text-or-url>`",
   "`/video <text-or-url>`",
   "`/playnext <input>`",
+  "`/playlist <artist-or-genre>`",
   "`/next`",
   "`/previous`",
   "`/volume <0-100>`",
@@ -20,16 +21,20 @@ export function buildHowdoMessage(controlChannelId: string, queueLimit: number):
     `- ${HOWDO_COMMANDS[0]} queues music (YouTube Music-biased) and plays in voice.`,
     `- ${HOWDO_COMMANDS[1]} queues a video result, embeds it in chat, and plays audio in voice.`,
     `- ${HOWDO_COMMANDS[2]} inserts a track to play immediately after the current track.`,
-    `- ${HOWDO_COMMANDS[3]}, ${HOWDO_COMMANDS[4]}, ${HOWDO_COMMANDS[5]}, ${HOWDO_COMMANDS[6]}, ${HOWDO_COMMANDS[7]}`,
+    `- ${HOWDO_COMMANDS[3]} enables endless compatible autoplay (example: \`/playlist synthwave\`, \`/playlist gunship\`, \`/playlist sublime\`).`,
+    "- Run `/playlist off` to stop autoplay.",
+    `- ${HOWDO_COMMANDS[4]}, ${HOWDO_COMMANDS[5]}, ${HOWDO_COMMANDS[6]}, ${HOWDO_COMMANDS[7]}, ${HOWDO_COMMANDS[8]}`,
     `- Use the control embed buttons for Previous/Pause/Resume/Next/Volume.`,
     "- Use the Suggestions dropdown to queue a recommended track as play-next.",
+    "- Default volume is 20% for new queues.",
     "",
     "Rules:",
     `- Run commands in <#${controlChannelId}>.`,
-    "- Join a voice channel before /play, /playnext, /video, /next, and /previous.",
+    "- Join a voice channel before /play, /playnext, /playlist, /video, /next, and /previous.",
+    "- Playback stops when no human users remain in voice.",
     `- Queue limit: ${queueLimit} tracks.`,
     "",
-    `Tip: Run ${HOWDO_COMMANDS[8]} anytime for this guide.`
+    `Tip: Run ${HOWDO_COMMANDS[9]} anytime for this guide.`
   ].join("\n");
 }
 

@@ -21,6 +21,16 @@ export interface EnqueueResult {
   startedPlaying: boolean;
 }
 
+export interface RemoveQueuedTrackResult {
+  state: GuildQueueState;
+  removed: Track | null;
+}
+
+export interface ClearQueueResult {
+  state: GuildQueueState;
+  cleared: number;
+}
+
 export class QueueStore {
   private states = new Map<string, GuildQueueState>();
 
@@ -97,6 +107,35 @@ export class QueueStore {
     return this.getSnapshot(guildId);
   }
 
+  removeQueuedTrackAt(guildId: string, position: number): RemoveQueuedTrackResult {
+    const state = this.ensureState(guildId);
+    const index = Math.trunc(position) - 1;
+
+    if (index < 0 || index >= state.queue.length) {
+      return {
+        state: this.getSnapshot(guildId),
+        removed: null
+      };
+    }
+
+    const [removed] = state.queue.splice(index, 1);
+    return {
+      state: this.getSnapshot(guildId),
+      removed: removed ?? null
+    };
+  }
+
+  clearQueue(guildId: string): ClearQueueResult {
+    const state = this.ensureState(guildId);
+    const cleared = state.queue.length;
+    state.queue = [];
+
+    return {
+      state: this.getSnapshot(guildId),
+      cleared
+    };
+  }
+
   setVolume(guildId: string, volume: number): GuildQueueState {
     const state = this.ensureState(guildId);
     state.volume = Math.max(0, Math.min(100, volume));
@@ -113,7 +152,7 @@ export class QueueStore {
       current: null,
       queue: [],
       history: [],
-      volume: 50
+      volume: 20
     };
 
     this.states.set(guildId, initial);

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { Client, GatewayIntentBits } from "discord.js";
+import { AutoplayController } from "./core/autoplayController.js";
 import { loadEnv } from "./config/env.js";
 import { QueueStore } from "./core/queueStore.js";
 import { VoicePlaybackController } from "./core/voicePlayback.js";
@@ -27,11 +28,13 @@ const controlPanel = new ControlPanelController(
   integrations.youtube,
   integrations.gemini
 );
+const autoplay = new AutoplayController(queueStore, integrations.youtube, env.queueLimit);
 
 const PANEL_REFRESH_COMMANDS = new Set([
   "play",
   "video",
   "playnext",
+  "playlist",
   "next",
   "previous",
   "volume",
@@ -41,15 +44,22 @@ const PANEL_REFRESH_COMMANDS = new Set([
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
 });
-const voicePlayback = new VoicePlaybackController(
+let voicePlayback: VoicePlaybackController | null = null;
+
+voicePlayback = new VoicePlaybackController(
   queueStore,
   env.noListenerGraceSeconds,
   async (guildId) => {
+    if (!voicePlayback) {
+      return;
+    }
+
     const guild = client.guilds.cache.get(guildId);
     if (!guild) {
       return;
     }
 
+    await autoplay.handlePlaybackStateChange(guild, voicePlayback);
     await controlPanel.refreshForGuild(guild, env.controlChannelId);
   },
   env.ytdlpCookiesPath
@@ -61,6 +71,10 @@ client.once("ready", () => {
 
 client.on("interactionCreate", async (interaction) => {
   if (interaction.isButton() || interaction.isStringSelectMenu()) {
+    if (!voicePlayback) {
+      return;
+    }
+
     await handleControlInteraction(interaction, {
       controlChannelId: env.controlChannelId,
       queueStore,
@@ -75,12 +89,17 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   try {
+    if (!voicePlayback) {
+      throw new Error("Voice playback is not initialized.");
+    }
+
     await handleChatInputCommand(interaction, {
       controlChannelId: env.controlChannelId,
       queueLimit: env.queueLimit,
       watchTogetherApplicationId: env.watchTogetherApplicationId,
       queueStore,
       voicePlayback,
+      autoplay,
       integrations
     });
 
@@ -112,6 +131,10 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 client.on("voiceStateUpdate", (oldState, newState) => {
+  if (!voicePlayback) {
+    return;
+  }
+
   const guild = newState.guild ?? oldState.guild;
   void voicePlayback.handleVoiceStateUpdate(guild);
 });

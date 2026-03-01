@@ -56,6 +56,11 @@ export class VoicePlaybackController {
     return this.sessions.has(guildId);
   }
 
+  getSessionChannelId(guildId: string): string | null {
+    const session = this.sessions.get(guildId);
+    return session?.channelId ?? null;
+  }
+
   isPlayerIdle(guildId: string): boolean {
     const session = this.sessions.get(guildId);
     if (!session) {
@@ -135,6 +140,18 @@ export class VoicePlaybackController {
 
     if (!currentTrack) {
       this.stopTrackPipeline(session);
+
+      // When /next interrupts into an empty queue, the next idle is ignored by design.
+      // Trigger a state change explicitly so playlist autoplay can refill and resume.
+      if (interruptCurrent) {
+        try {
+          await entersState(session.player, AudioPlayerStatus.Idle, 2_000);
+        } catch {
+          // Best-effort synchronization before notifying autoplay callbacks.
+        }
+      }
+
+      this.notifyPlaybackStateChange(guildId);
       return false;
     }
 
@@ -286,6 +303,7 @@ export class VoicePlaybackController {
     session.connection.destroy();
 
     this.sessions.delete(guildId);
+    this.notifyPlaybackStateChange(guildId);
   }
 
   async handleVoiceStateUpdate(guild: Guild): Promise<void> {

@@ -1,0 +1,97 @@
+# Jibboo
+
+Discord music bot for "The Friend Zone".
+
+Jibboo supports slash commands for queueing YouTube Music-biased tracks, queue control, Gemini-assisted guidance, and continuous autoplay by artist/genre.
+
+## Features
+
+- `/play <text-or-url>`: queue music and autoplay in voice.
+- `/video <text-or-url>`: queue video result, post an embed, and play audio in voice.
+- `/playnext <input>`: insert the next track after current.
+- `/playlist <artist-or-genre>`: enable endless compatible autoplay.
+- `/playlist off`: disable autoplay.
+- `/next`, `/previous`, `/volume <0-100>`, `/nowplaying`.
+- `/jibboo <instruction>`: Gemini-powered music/queue assistant.
+- `/howdo`: quick usage guide (ephemeral).
+- Embedded queue control panel with buttons and suggestion dropdown.
+- Playback auto-stops when no human users remain in voice.
+- Default volume for new queues is `20%`.
+
+## Commands
+
+Run commands in your configured control channel (`CONTROL_CHANNEL_ID`), usually `#chat`.
+
+- `/play <text-or-url>`
+- `/video <text-or-url>`
+- `/playnext <input>`
+- `/playlist <artist-or-genre>`
+- `/playlist off`
+- `/next`
+- `/previous`
+- `/volume <0-100>`
+- `/nowplaying`
+- `/jibboo <instruction>`
+- `/howdo`
+
+## Requirements
+
+- Node.js `22+`
+- `npm`
+- Docker + Docker Compose (for containerized run)
+- Discord bot application in your server
+- YouTube Data API key
+- Gemini API key
+
+## Environment
+
+Copy `.env.example` to `.env` and set values:
+
+```bash
+cp .env.example .env
+```
+
+Variables:
+
+- `DISCORD_TOKEN` (required)
+- `DISCORD_CLIENT_ID` (required)
+- `DISCORD_GUILD_ID` (required)
+- `CONTROL_CHANNEL_ID` (required)
+- `YOUTUBE_API_KEY` (required)
+- `GEMINI_API_KEY` (required)
+- `GEMINI_MODEL` (optional, default `gemini-2.5-flash`)
+- `WATCH_TOGETHER_APPLICATION_ID` (optional)
+- `YTDLP_COOKIES_PATH` (optional, for authenticated yt-dlp requests)
+- `QUEUE_LIMIT` (optional, default `50`)
+- `NO_LISTENER_GRACE_SECONDS` (optional, default `15`)
+
+## Run (Docker)
+
+```bash
+docker compose up --build -d
+```
+
+Check logs:
+
+```bash
+docker logs -f jibboo
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
+## Run (Local npm)
+
+```bash
+npm ci
+npm run build
+npm run dev
+```
+
+## Notes
+
+- If YouTube API quota is exhausted, Jibboo falls back to yt-dlp search.
+- Slash commands are registered on startup for the configured guild.

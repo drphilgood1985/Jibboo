@@ -44,6 +44,7 @@ interface YtdlpSearchCollection {
 }
 
 const QUOTA_BACKOFF_MS = 15 * 60 * 1000;
+const YTDLP_TIMEOUT_MS = 25_000;
 
 function toDisplayUrl(videoId: string, mode: SearchMode): string {
   if (mode === "music") {
@@ -122,6 +123,27 @@ function runYtdlpSuggestions(
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
+
+    const timeout = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      process.kill("SIGKILL");
+      reject(new Error(`yt-dlp search timed out after ${YTDLP_TIMEOUT_MS / 1000}s.`));
+    }, YTDLP_TIMEOUT_MS);
+
+    const finish = (fn: () => void) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timeout);
+      fn();
+    };
 
     process.stdout?.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -132,25 +154,29 @@ function runYtdlpSuggestions(
     });
 
     process.on("error", (error) => {
-      reject(error);
+      finish(() => {
+        reject(error);
+      });
     });
 
     process.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error(`yt-dlp search failed with code ${code}: ${stderr.trim()}`));
-        return;
-      }
+      finish(() => {
+        if (code !== 0) {
+          reject(new Error(`yt-dlp search failed with code ${code}: ${stderr.trim()}`));
+          return;
+        }
 
-      try {
-        const parsed = JSON.parse(stdout) as YtdlpSearchCollection;
-        const results = (parsed.entries ?? [])
-          .map((entry) => toYoutubeResult(entry, mode))
-          .filter((entry): entry is YoutubeSearchResult => Boolean(entry));
+        try {
+          const parsed = JSON.parse(stdout) as YtdlpSearchCollection;
+          const results = (parsed.entries ?? [])
+            .map((entry) => toYoutubeResult(entry, mode))
+            .filter((entry): entry is YoutubeSearchResult => Boolean(entry));
 
-        resolve(results);
-      } catch (error) {
-        reject(error);
-      }
+          resolve(results);
+        } catch (error) {
+          reject(error);
+        }
+      });
     });
   });
 }
@@ -179,6 +205,27 @@ function runYtdlpMixRequest(
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
+
+    const timeout = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      process.kill("SIGKILL");
+      reject(new Error(`yt-dlp mix lookup timed out after ${YTDLP_TIMEOUT_MS / 1000}s.`));
+    }, YTDLP_TIMEOUT_MS);
+
+    const finish = (fn: () => void) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timeout);
+      fn();
+    };
 
     process.stdout?.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -189,26 +236,30 @@ function runYtdlpMixRequest(
     });
 
     process.on("error", (error) => {
-      reject(error);
+      finish(() => {
+        reject(error);
+      });
     });
 
     process.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error(`yt-dlp mix failed with code ${code}: ${stderr.trim()}`));
-        return;
-      }
+      finish(() => {
+        if (code !== 0) {
+          reject(new Error(`yt-dlp mix failed with code ${code}: ${stderr.trim()}`));
+          return;
+        }
 
-      try {
-        const parsed = JSON.parse(stdout) as YtdlpSearchCollection;
-        const results = (parsed.entries ?? [])
-          .map((entry) => toYoutubeResult(entry, mode))
-          .filter((entry): entry is YoutubeSearchResult => Boolean(entry))
-          .slice(0, limit);
+        try {
+          const parsed = JSON.parse(stdout) as YtdlpSearchCollection;
+          const results = (parsed.entries ?? [])
+            .map((entry) => toYoutubeResult(entry, mode))
+            .filter((entry): entry is YoutubeSearchResult => Boolean(entry))
+            .slice(0, limit);
 
-        resolve(results);
-      } catch (error) {
-        reject(error);
-      }
+          resolve(results);
+        } catch (error) {
+          reject(error);
+        }
+      });
     });
   });
 }

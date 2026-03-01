@@ -5,6 +5,7 @@ import type {
 } from "discord.js";
 import type { QueueStore } from "../core/queueStore.js";
 import type { VoicePlaybackController } from "../core/voicePlayback.js";
+import type { AutoplayController } from "../core/autoplayController.js";
 import type { IntegrationClients } from "../integrations/types.js";
 
 export interface CommandContext {
@@ -13,6 +14,7 @@ export interface CommandContext {
   watchTogetherApplicationId: string;
   queueStore: QueueStore;
   voicePlayback: VoicePlaybackController;
+  autoplay?: AutoplayController;
   integrations: IntegrationClients;
 }
 
