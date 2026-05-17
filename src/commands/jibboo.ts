@@ -59,6 +59,7 @@ function queueEditHelpMessage(): string {
     "I can only apply these queue edits directly via `/jibboo` right now:",
     "- `remove #<queue-position>`",
     "- `clear queue`",
+    "For queue removal, you can also use `/remove <number>`.",
     "For other changes, use slash commands: `/play`, `/playnext`, `/next`, `/previous`, `/volume`."
   ].join("\n");
 }

@@ -8,11 +8,17 @@ import {
   entersState,
   joinVoiceChannel,
   type AudioPlayer,
+  type AudioResource,
   type VoiceConnection,
   StreamType
 } from "@discordjs/voice";
 import type { Guild, VoiceBasedChannel } from "discord.js";
-import type { QueueStore } from "./queueStore.js";
+import type { GuildQueueState, QueueStore } from "./queueStore.js";
+
+interface TrackPipeline {
+  ytdlpProcess: ChildProcess | null;
+  ffmpegProcess: ChildProcess | null;
+}
 
 interface GuildVoiceSession {
   channelId: string;
@@ -79,6 +85,14 @@ export class VoicePlaybackController {
     return session.player.state.status === AudioPlayerStatus.Paused;
   }
 
+  async skipToNext(guildId: string): Promise<GuildQueueState> {
+    return this.advanceQueueAndPlay(guildId, () => this.queueStore.next(guildId));
+  }
+
+  async skipToPrevious(guildId: string): Promise<GuildQueueState> {
+    return this.advanceQueueAndPlay(guildId, () => this.queueStore.previous(guildId));
+  }
+
   async connect(guild: Guild, voiceChannel: VoiceBasedChannel): Promise<void> {
     const existingSession = this.sessions.get(guild.id);
     if (existingSession && existingSession.channelId === voiceChannel.id) {
@@ -103,7 +117,7 @@ export class VoicePlaybackController {
 
     if (existingSession) {
       this.clearNoListenerTimer(existingSession);
-      this.stopTrackPipeline(existingSession);
+      this.stopCurrentTrackPipeline(existingSession);
       existingSession.connection.destroy();
     }
 
@@ -130,34 +144,53 @@ export class VoicePlaybackController {
       return false;
     }
 
-    if (interruptCurrent && session.player.state.status !== AudioPlayerStatus.Idle) {
-      session.ignoreNextIdle = true;
-      session.player.stop(true);
-    }
-
     const state = this.queueStore.getSnapshot(guildId);
     const currentTrack = state.current;
 
     if (!currentTrack) {
-      this.stopTrackPipeline(session);
-
-      // When /next interrupts into an empty queue, the next idle is ignored by design.
-      // Trigger a state change explicitly so playlist autoplay can refill and resume.
       if (interruptCurrent) {
-        try {
-          await entersState(session.player, AudioPlayerStatus.Idle, 2_000);
-        } catch {
-          // Best-effort synchronization before notifying autoplay callbacks.
-        }
+        this.stopPlayerForManualTransition(session);
       }
 
-      this.notifyPlaybackStateChange(guildId);
+      this.stopCurrentTrackPipeline(session);
+      await this.notifyPlaybackStateChange(guildId);
       return false;
     }
 
-    this.stopTrackPipeline(session);
+    const { pipeline, resource } = this.createTrackResource(guildId, currentTrack.url, state.volume);
+    const previousPipeline = this.getCurrentTrackPipeline(session);
 
-    const playbackUrl = normalizePlaybackUrl(currentTrack.url);
+    try {
+      session.player.play(resource);
+    } catch (error) {
+      this.stopPipeline(pipeline);
+      throw error;
+    }
+
+    session.ytdlpProcess = pipeline.ytdlpProcess;
+    session.ffmpegProcess = pipeline.ffmpegProcess;
+    this.stopPipeline(previousPipeline);
+
+    await entersState(session.player, AudioPlayerStatus.Playing, 10_000);
+    return true;
+  }
+
+  private async advanceQueueAndPlay(
+    guildId: string,
+    advanceQueue: () => GuildQueueState
+  ): Promise<GuildQueueState> {
+    advanceQueue();
+    await this.playCurrent(guildId, true);
+
+    return this.queueStore.getSnapshot(guildId);
+  }
+
+  private createTrackResource(
+    guildId: string,
+    trackUrl: string,
+    volumePercent: number
+  ): { pipeline: TrackPipeline; resource: AudioResource } {
+    const playbackUrl = normalizePlaybackUrl(trackUrl);
     const ytdlpArgs = [
       "--no-playlist",
       ...(this.ytdlpCookiesPath
@@ -170,13 +203,9 @@ export class VoicePlaybackController {
       playbackUrl
     ];
 
-    const ytdlpProcess = spawn(
-      "yt-dlp",
-      ytdlpArgs,
-      {
-        stdio: ["ignore", "pipe", "pipe"]
-      }
-    );
+    const ytdlpProcess = spawn("yt-dlp", ytdlpArgs, {
+      stdio: ["ignore", "pipe", "pipe"]
+    });
 
     const ffmpegProcess = spawn(
       "ffmpeg",
@@ -199,7 +228,10 @@ export class VoicePlaybackController {
       }
     );
 
+    const pipeline: TrackPipeline = { ytdlpProcess, ffmpegProcess };
+
     if (!ytdlpProcess.stdout || !ffmpegProcess.stdin) {
+      this.stopPipeline(pipeline);
       throw new Error("Failed to initialize yt-dlp/ffmpeg pipeline streams.");
     }
 
@@ -239,10 +271,8 @@ export class VoicePlaybackController {
       }
     });
 
-    session.ytdlpProcess = ytdlpProcess;
-    session.ffmpegProcess = ffmpegProcess;
-
     if (!ffmpegProcess.stdout) {
+      this.stopPipeline(pipeline);
       throw new Error("ffmpeg output stream not available.");
     }
 
@@ -251,11 +281,9 @@ export class VoicePlaybackController {
       inlineVolume: true
     });
 
-    resource.volume?.setVolume(Math.max(0, Math.min(1, state.volume / 100)));
+    resource.volume?.setVolume(Math.max(0, Math.min(1, volumePercent / 100)));
 
-    session.player.play(resource);
-    await entersState(session.player, AudioPlayerStatus.Playing, 10_000);
-    return true;
+    return { pipeline, resource };
   }
 
   setVolume(guildId: string, volumePercent: number): void {
@@ -298,12 +326,12 @@ export class VoicePlaybackController {
 
     session.ignoreNextIdle = true;
     session.player.stop(true);
-    this.stopTrackPipeline(session);
+    this.stopCurrentTrackPipeline(session);
     this.clearNoListenerTimer(session);
     session.connection.destroy();
 
     this.sessions.delete(guildId);
-    this.notifyPlaybackStateChange(guildId);
+    await this.notifyPlaybackStateChange(guildId);
   }
 
   async handleVoiceStateUpdate(guild: Guild): Promise<void> {
@@ -336,7 +364,7 @@ export class VoicePlaybackController {
   private bindPlayerEvents(guildId: string, session: GuildVoiceSession): void {
     session.player.on(AudioPlayerStatus.Playing, () => {
       console.log(`Audio player is now playing for guild ${guildId}`);
-      this.notifyPlaybackStateChange(guildId);
+      void this.notifyPlaybackStateChange(guildId);
     });
 
     session.player.on(AudioPlayerStatus.Buffering, () => {
@@ -368,11 +396,11 @@ export class VoicePlaybackController {
       return;
     }
 
-    this.stopTrackPipeline(session);
+    this.stopCurrentTrackPipeline(session);
 
     let nextState = this.queueStore.next(guildId);
     if (!nextState.current) {
-      this.notifyPlaybackStateChange(guildId);
+      await this.notifyPlaybackStateChange(guildId);
       return;
     }
 
@@ -384,11 +412,11 @@ export class VoicePlaybackController {
         return;
       } catch (error) {
         console.error("Failed to play queued track. Skipping to next:", error);
-        this.stopTrackPipeline(session);
+        this.stopCurrentTrackPipeline(session);
 
         nextState = this.queueStore.next(guildId);
         if (!nextState.current) {
-          this.notifyPlaybackStateChange(guildId);
+          await this.notifyPlaybackStateChange(guildId);
           return;
         }
       }
@@ -414,15 +442,39 @@ export class VoicePlaybackController {
     await this.stopAndDisconnect(guild.id);
   }
 
-  private stopTrackPipeline(session: GuildVoiceSession): void {
-    if (session.ytdlpProcess) {
-      session.ytdlpProcess.kill("SIGTERM");
-      session.ytdlpProcess = null;
+  private stopPlayerForManualTransition(session: GuildVoiceSession): void {
+    if (session.player.state.status === AudioPlayerStatus.Idle) {
+      return;
     }
 
-    if (session.ffmpegProcess) {
-      session.ffmpegProcess.kill("SIGTERM");
-      session.ffmpegProcess = null;
+    session.ignoreNextIdle = true;
+    const stopped = session.player.stop(true);
+    if (!stopped || session.ignoreNextIdle) {
+      session.ignoreNextIdle = false;
+    }
+  }
+
+  private getCurrentTrackPipeline(session: GuildVoiceSession): TrackPipeline {
+    return {
+      ytdlpProcess: session.ytdlpProcess,
+      ffmpegProcess: session.ffmpegProcess
+    };
+  }
+
+  private stopCurrentTrackPipeline(session: GuildVoiceSession): void {
+    const pipeline = this.getCurrentTrackPipeline(session);
+    session.ytdlpProcess = null;
+    session.ffmpegProcess = null;
+    this.stopPipeline(pipeline);
+  }
+
+  private stopPipeline(pipeline: TrackPipeline): void {
+    if (pipeline.ytdlpProcess) {
+      pipeline.ytdlpProcess.kill("SIGTERM");
+    }
+
+    if (pipeline.ffmpegProcess) {
+      pipeline.ffmpegProcess.kill("SIGTERM");
     }
   }
 
@@ -433,12 +485,12 @@ export class VoicePlaybackController {
     }
   }
 
-  private notifyPlaybackStateChange(guildId: string): void {
+  private async notifyPlaybackStateChange(guildId: string): Promise<void> {
     if (!this.onPlaybackStateChange) {
       return;
     }
 
-    Promise.resolve(this.onPlaybackStateChange(guildId)).catch((error) => {
+    await Promise.resolve(this.onPlaybackStateChange(guildId)).catch((error) => {
       console.error("Playback state callback failed:", error);
     });
   }

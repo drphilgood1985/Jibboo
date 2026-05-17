@@ -7,6 +7,7 @@ import { playCommand } from "../commands/play.js";
 import { playnextCommand } from "../commands/playnext.js";
 import { playlistCommand } from "../commands/playlist.js";
 import { previousCommand } from "../commands/previous.js";
+import { removeCommand } from "../commands/remove.js";
 import { videoCommand } from "../commands/video.js";
 import { volumeCommand } from "../commands/volume.js";
 import type { AppCommand } from "../types/appCommand.js";
@@ -18,6 +19,7 @@ export const commandRegistry: AppCommand[] = [
   playlistCommand,
   nextCommand,
   previousCommand,
+  removeCommand,
   volumeCommand,
   nowplayingCommand,
   jibbooCommand,

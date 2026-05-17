@@ -96,8 +96,7 @@ async function handleButton(
         return;
       }
 
-      context.queueStore.previous(target.guildId);
-      await context.voicePlayback.playCurrent(target.guildId, true);
+      await context.voicePlayback.skipToPrevious(target.guildId);
       break;
     }
 
@@ -107,8 +106,7 @@ async function handleButton(
         return;
       }
 
-      context.queueStore.next(target.guildId);
-      await context.voicePlayback.playCurrent(target.guildId, true);
+      await context.voicePlayback.skipToNext(target.guildId);
       break;
     }
 

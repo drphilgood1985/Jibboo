@@ -11,7 +11,7 @@ Jibboo supports slash commands for queueing YouTube Music-biased tracks, queue c
 - `/playnext <input>`: insert the next track after current.
 - `/playlist <artist-or-genre>`: enable endless compatible autoplay.
 - `/playlist off`: disable autoplay.
-- `/next`, `/previous`, `/volume <0-100>`, `/nowplaying`.
+- `/next`, `/previous`, `/remove <number>`, `/volume <0-100>`, `/nowplaying`.
 - `/jibboo <instruction>`: Gemini-powered music/queue assistant.
 - `/howdo`: quick usage guide (ephemeral).
 - Embedded queue control panel with buttons and suggestion dropdown.
@@ -29,6 +29,7 @@ Run commands in your configured control channel (`CONTROL_CHANNEL_ID`), usually 
 - `/playlist off`
 - `/next`
 - `/previous`
+- `/remove <number>`
 - `/volume <0-100>`
 - `/nowplaying`
 - `/jibboo <instruction>`

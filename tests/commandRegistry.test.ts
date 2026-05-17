@@ -10,6 +10,7 @@ describe("command registration", () => {
     expect(commandNames).toContain("video");
     expect(commandNames).toContain("playnext");
     expect(commandNames).toContain("playlist");
+    expect(commandNames).toContain("remove");
     expect(commandNames).toContain("jibboo");
     expect(commandNames).toContain("howdo");
   });

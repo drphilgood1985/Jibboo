@@ -28,8 +28,7 @@ export const previousCommand: AppCommand = {
     try {
       await context.voicePlayback.connect(guild, voiceChannel);
 
-      const state = context.queueStore.previous(guildId);
-      await context.voicePlayback.playCurrent(guildId, true);
+      const state = await context.voicePlayback.skipToPrevious(guildId);
 
       await interaction.reply({
         content: clampContent([formatNowPlaying(state), formatQueuePreview(state)].join("\n"))
