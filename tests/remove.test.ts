@@ -20,6 +20,7 @@ type MockInteraction = {
   channelId: string;
   commandName: string;
   guildId: string | null;
+  guild?: unknown;
   deferred: boolean;
   replied: boolean;
   options: {
@@ -27,6 +28,8 @@ type MockInteraction = {
   };
   reply: ReturnType<typeof vi.fn>;
   followUp: ReturnType<typeof vi.fn>;
+  deferReply: ReturnType<typeof vi.fn>;
+  deleteReply: ReturnType<typeof vi.fn>;
 };
 
 function createInteraction(position: number): MockInteraction {
@@ -40,7 +43,9 @@ function createInteraction(position: number): MockInteraction {
       getInteger: vi.fn(() => position)
     },
     reply: vi.fn(async () => undefined),
-    followUp: vi.fn(async () => undefined)
+    followUp: vi.fn(async () => undefined),
+    deferReply: vi.fn(async () => undefined),
+    deleteReply: vi.fn(async () => undefined)
   };
 }
 
@@ -57,6 +62,29 @@ function createContext(queueStore: QueueStore) {
         searchTopVideo: vi.fn(async () => null),
         searchSuggestions: vi.fn(async () => [])
       }
+    }
+  };
+}
+
+function createRedirectContext(queueStore: QueueStore) {
+  return {
+    ...createContext(queueStore),
+    controlChannelId: "chat-channel",
+    commandChannelIds: ["chat-channel", "dj-channel"],
+    postChannelId: "dj-channel"
+  };
+}
+
+function createGuildWithPostChannel(send: ReturnType<typeof vi.fn>): unknown {
+  return {
+    channels: {
+      cache: {
+        get: vi.fn(() => ({
+          isTextBased: () => true,
+          send
+        }))
+      },
+      fetch: vi.fn(async () => null)
     }
   };
 }
@@ -123,5 +151,28 @@ describe("/remove command", () => {
     const state = queueStore.getSnapshot("guild-1");
     expect(state.current?.title).toBe("Song A");
     expect(state.queue.map((track) => track.title)).toEqual(["Song B", "Song C"]);
+  });
+
+  it("routes immediate public replies from chat to the post channel", async () => {
+    const interaction = createInteraction(2);
+    const postSend = vi.fn(async () => ({ id: "message-1" }));
+    interaction.channelId = "chat-channel";
+    interaction.guild = createGuildWithPostChannel(postSend);
+    const queueStore = new QueueStore();
+    seedQueue(queueStore);
+
+    await handleChatInputCommand(
+      interaction as unknown as ChatInputCommandInteraction,
+      createRedirectContext(queueStore)
+    );
+
+    expect(interaction.reply).not.toHaveBeenCalled();
+    expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+    expect(postSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining("Removed #2: **Song C**")
+      })
+    );
+    expect(interaction.deleteReply).toHaveBeenCalledTimes(1);
   });
 });

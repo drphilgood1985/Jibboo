@@ -10,6 +10,8 @@ import type { IntegrationClients } from "../integrations/types.js";
 
 export interface CommandContext {
   controlChannelId: string;
+  commandChannelIds?: readonly string[];
+  postChannelId?: string;
   queueLimit: number;
   watchTogetherApplicationId: string;
   queueStore: QueueStore;

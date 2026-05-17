@@ -18,6 +18,7 @@ type MockInteraction = {
   channelId: string;
   commandName: string;
   guildId: string | null;
+  guild?: unknown;
   deferred: boolean;
   replied: boolean;
   user: { id: string };
@@ -28,6 +29,7 @@ type MockInteraction = {
   followUp: ReturnType<typeof vi.fn>;
   deferReply: ReturnType<typeof vi.fn>;
   editReply: ReturnType<typeof vi.fn>;
+  deleteReply: ReturnType<typeof vi.fn>;
 };
 
 function createInteraction(): MockInteraction {
@@ -44,7 +46,22 @@ function createInteraction(): MockInteraction {
     reply: vi.fn(async () => undefined),
     followUp: vi.fn(async () => undefined),
     deferReply: vi.fn(async () => undefined),
-    editReply: vi.fn(async () => undefined)
+    editReply: vi.fn(async () => undefined),
+    deleteReply: vi.fn(async () => undefined)
+  };
+}
+
+function createGuildWithPostChannel(send: ReturnType<typeof vi.fn>): unknown {
+  return {
+    channels: {
+      cache: {
+        get: vi.fn(() => ({
+          isTextBased: () => true,
+          send
+        }))
+      },
+      fetch: vi.fn(async () => null)
+    }
   };
 }
 
@@ -104,6 +121,39 @@ describe("/jibboo command", () => {
     expect(interaction.editReply).toHaveBeenCalledWith(
       "Gemini request failed. Check GEMINI_API_KEY / GEMINI_MODEL configuration."
     );
+  });
+
+  it("routes public replies from monitored chat to the post channel without leaving a chat response", async () => {
+    const interaction = createInteraction();
+    const postSend = vi.fn(async () => ({ id: "message-1" }));
+    interaction.channelId = "chat-channel";
+    interaction.guild = createGuildWithPostChannel(postSend);
+    const geminiSpy = vi.fn(async () => "Try adding some lo-fi next.");
+
+    await handleChatInputCommand(
+      interaction as unknown as ChatInputCommandInteraction,
+      {
+        controlChannelId: "chat-channel",
+        commandChannelIds: ["chat-channel", "dj-channel"],
+        postChannelId: "dj-channel",
+        queueLimit: 50,
+        watchTogetherApplicationId: "880218394199220334",
+        queueStore: new QueueStore(),
+        voicePlayback: createVoicePlaybackStub() as any,
+        integrations: {
+          gemini: { generateReply: geminiSpy },
+          youtube: {
+            searchTopVideo: vi.fn(async () => null),
+            searchSuggestions: vi.fn(async () => [])
+          }
+        }
+      }
+    );
+
+    expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+    expect(postSend).toHaveBeenCalledWith("Try adding some lo-fi next.");
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.deleteReply).toHaveBeenCalledTimes(1);
   });
 
   it("applies remove queue edits directly and skips Gemini", async () => {

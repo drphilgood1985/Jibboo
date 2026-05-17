@@ -20,7 +20,7 @@ Jibboo supports slash commands for queueing YouTube Music-biased tracks, queue c
 
 ## Commands
 
-Run commands in your configured control channel (`CONTROL_CHANNEL_ID`), usually `#chat`.
+Run commands in monitored channels, usually `#chat` and `#dj-jibboo`. Public bot responses and the queue control panel post only in `POST_CHANNEL_ID`.
 
 - `/play <text-or-url>`
 - `/video <text-or-url>`
@@ -57,7 +57,9 @@ Variables:
 - `DISCORD_TOKEN` (required)
 - `DISCORD_CLIENT_ID` (required)
 - `DISCORD_GUILD_ID` (required)
-- `CONTROL_CHANNEL_ID` (required)
+- `CONTROL_CHANNEL_ID` (required, usually `#chat`)
+- `POST_CHANNEL_ID` (optional, defaults to `CONTROL_CHANNEL_ID`; set to `#dj-jibboo` to keep bot output there)
+- `MONITOR_CHANNEL_IDS` (optional comma-separated override; defaults to `CONTROL_CHANNEL_ID,POST_CHANNEL_ID`)
 - `YOUTUBE_API_KEY` (required)
 - `GEMINI_API_KEY` (required)
 - `GEMINI_MODEL` (optional, default `gemini-2.5-flash`)

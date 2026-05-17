@@ -11,7 +11,7 @@ import type { ControlPanelController } from "./controlPanel.js";
 import { CONTROL_IDS } from "./controlPanel.js";
 
 export interface ControlInteractionContext {
-  controlChannelId: string;
+  postChannelId: string;
   queueStore: QueueStore;
   voicePlayback: VoicePlaybackController;
   controlPanel: ControlPanelController;
@@ -79,11 +79,8 @@ async function handleButton(
     return;
   }
 
-  if (interaction.channelId !== context.controlChannelId) {
-    await interaction.reply({
-      content: `Please use controls in <#${context.controlChannelId}>.`,
-      ephemeral: true
-    });
+  if (interaction.channelId !== context.postChannelId) {
+    await interaction.deferUpdate();
     return;
   }
 
@@ -149,7 +146,7 @@ async function handleButton(
       return;
   }
 
-  await context.controlPanel.refreshForGuild(guild, context.controlChannelId);
+  await context.controlPanel.refreshForGuild(guild, context.postChannelId);
 }
 
 async function handleSuggestionSelect(
@@ -165,11 +162,8 @@ async function handleSuggestionSelect(
     return;
   }
 
-  if (interaction.channelId !== context.controlChannelId) {
-    await interaction.reply({
-      content: `Please use controls in <#${context.controlChannelId}>.`,
-      ephemeral: true
-    });
+  if (interaction.channelId !== context.postChannelId) {
+    await interaction.deferUpdate();
     return;
   }
 
@@ -220,7 +214,7 @@ async function handleSuggestionSelect(
     context.voicePlayback.resume(target.guildId);
   }
 
-  await context.controlPanel.refreshForGuild(guild, context.controlChannelId);
+  await context.controlPanel.refreshForGuild(guild, context.postChannelId);
 }
 
 export async function handleControlInteraction(

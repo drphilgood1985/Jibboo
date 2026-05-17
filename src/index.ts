@@ -5,6 +5,7 @@ import { loadEnv } from "./config/env.js";
 import { QueueStore } from "./core/queueStore.js";
 import { VoicePlaybackController } from "./core/voicePlayback.js";
 import { handleChatInputCommand } from "./discord/interactionHandler.js";
+import { routePublicRepliesToChannel } from "./discord/interactionReplyRouter.js";
 import { registerGuildCommands } from "./discord/registerGuildCommands.js";
 import { createGeminiService } from "./integrations/geminiService.js";
 import { createYoutubeService } from "./integrations/youtubeService.js";
@@ -61,7 +62,7 @@ voicePlayback = new VoicePlaybackController(
     }
 
     await autoplay.handlePlaybackStateChange(guild, voicePlayback);
-    await controlPanel.refreshForGuild(guild, env.controlChannelId);
+    await controlPanel.refreshForGuild(guild, env.postChannelId);
   },
   env.ytdlpCookiesPath
 );
@@ -77,7 +78,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     await handleControlInteraction(interaction, {
-      controlChannelId: env.controlChannelId,
+      postChannelId: env.postChannelId,
       queueStore,
       voicePlayback,
       controlPanel
@@ -96,6 +97,8 @@ client.on("interactionCreate", async (interaction) => {
 
     await handleChatInputCommand(interaction, {
       controlChannelId: env.controlChannelId,
+      commandChannelIds: env.commandChannelIds,
+      postChannelId: env.postChannelId,
       queueLimit: env.queueLimit,
       watchTogetherApplicationId: env.watchTogetherApplicationId,
       queueStore,
@@ -106,21 +109,22 @@ client.on("interactionCreate", async (interaction) => {
 
     if (
       interaction.guild &&
-      interaction.channelId === env.controlChannelId &&
+      env.commandChannelIds.includes(interaction.channelId) &&
       PANEL_REFRESH_COMMANDS.has(interaction.commandName)
     ) {
-      await controlPanel.refreshForGuild(interaction.guild, env.controlChannelId);
+      await controlPanel.refreshForGuild(interaction.guild, env.postChannelId);
     }
   } catch (error) {
     console.error("Command handling failed:", error);
 
     try {
+      const routedInteraction = routePublicRepliesToChannel(interaction, env.postChannelId);
       if (interaction.deferred) {
-        await interaction.editReply(
+        await routedInteraction.editReply(
           "Command failed unexpectedly. Check container logs for details."
         );
       } else if (!interaction.replied) {
-        await interaction.reply({
+        await routedInteraction.reply({
           content: "Command failed unexpectedly. Check container logs for details.",
           ephemeral: true
         });

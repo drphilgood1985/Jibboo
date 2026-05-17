@@ -1,5 +1,8 @@
 import { SlashCommandBuilder } from "discord.js";
-import { replyEphemeral } from "../discord/channelPolicy.js";
+import {
+  formatChannelList,
+  normalizeChannelIds
+} from "../discord/channelPolicy.js";
 import type { AppCommand } from "../types/appCommand.js";
 
 const HOWDO_COMMANDS = [
@@ -16,8 +19,18 @@ const HOWDO_COMMANDS = [
   "`/howdo`"
 ] as const;
 
-export function buildHowdoMessage(controlChannelId: string, queueLimit: number): string {
-  return [
+export function buildHowdoMessage(
+  commandChannelIds: string | readonly string[],
+  postChannelId: string,
+  queueLimit: number
+): string {
+  const normalizedCommandChannelIds = normalizeChannelIds(commandChannelIds);
+  const commandChannels = formatChannelList(normalizedCommandChannelIds);
+  const shouldMentionPostChannel =
+    !new Set(normalizedCommandChannelIds).has(postChannelId) ||
+    normalizedCommandChannelIds.length > 1;
+
+  const lines = [
     "Jibboo quick start:",
     `- Queue music: ${HOWDO_COMMANDS[0]}, ${HOWDO_COMMANDS[1]}, ${HOWDO_COMMANDS[2]}.`,
     `- Playlist mode: ${HOWDO_COMMANDS[3]} starts compatible autoplay; \`/playlist off\` stops it.`,
@@ -29,13 +42,18 @@ export function buildHowdoMessage(controlChannelId: string, queueLimit: number):
     "- Default volume: 20%.",
     "",
     "Rules:",
-    `- Run commands in <#${controlChannelId}>.`,
+    `- Run commands in ${commandChannels}.`,
+    ...(shouldMentionPostChannel
+      ? [`- Public bot posts go to <#${postChannelId}>.`]
+      : []),
     "- Join a voice channel before /play, /playnext, /playlist, /video, /next, and /previous.",
     "- Playback stops when no human users remain in voice.",
     `- Queue limit: ${queueLimit} tracks.`,
     "",
     `Tip: Run ${HOWDO_COMMANDS[10]} anytime for this guide.`
-  ].join("\n");
+  ];
+
+  return lines.join("\n");
 }
 
 export const howdoCommand: AppCommand = {
@@ -43,9 +61,31 @@ export const howdoCommand: AppCommand = {
   controlChannelOnly: true,
   data: new SlashCommandBuilder()
     .setName("howdo")
-    .setDescription("Get a brief guide to using Jibboo commands."),
+    .setDescription("DM yourself a brief guide to using Jibboo commands."),
   async execute(interaction, context) {
-    const message = buildHowdoMessage(context.controlChannelId, context.queueLimit);
-    await replyEphemeral(interaction, message);
+    const postChannelId = context.postChannelId ?? context.controlChannelId;
+    const commandChannelIds = context.commandChannelIds ?? [
+      context.controlChannelId,
+      postChannelId
+    ];
+    const message = buildHowdoMessage(commandChannelIds, postChannelId, context.queueLimit);
+
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      await interaction.user.send(message);
+    } catch (error) {
+      console.error("Failed to DM /howdo instructions:", error);
+      await interaction.editReply(
+        "I couldn't DM you instructions. Check your Discord privacy settings and try `/howdo` again."
+      );
+      return;
+    }
+
+    try {
+      await interaction.deleteReply();
+    } catch (error) {
+      console.error("Failed to clear /howdo acknowledgement:", error);
+    }
   }
 };

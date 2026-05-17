@@ -180,8 +180,8 @@ export class ControlPanelController {
     return guildSuggestions.get(suggestionValue) ?? null;
   }
 
-  async refreshForGuild(guild: Guild, controlChannelId: string): Promise<void> {
-    const channel = guild.channels.cache.get(controlChannelId);
+  async refreshForGuild(guild: Guild, postChannelId: string): Promise<void> {
+    const channel = guild.channels.cache.get(postChannelId);
     if (
       !channel ||
       !channel.isTextBased() ||

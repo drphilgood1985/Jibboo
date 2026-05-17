@@ -19,8 +19,14 @@ type MockInteraction = {
   commandName: string;
   deferred: boolean;
   replied: boolean;
+  user: {
+    send: ReturnType<typeof vi.fn>;
+  };
   reply: ReturnType<typeof vi.fn>;
   followUp: ReturnType<typeof vi.fn>;
+  deferReply: ReturnType<typeof vi.fn>;
+  editReply: ReturnType<typeof vi.fn>;
+  deleteReply: ReturnType<typeof vi.fn>;
 };
 
 function createInteraction(channelId: string): MockInteraction {
@@ -29,13 +35,19 @@ function createInteraction(channelId: string): MockInteraction {
     commandName: "howdo",
     deferred: false,
     replied: false,
+    user: {
+      send: vi.fn(async () => undefined)
+    },
     reply: vi.fn(async () => undefined),
-    followUp: vi.fn(async () => undefined)
+    followUp: vi.fn(async () => undefined),
+    deferReply: vi.fn(async () => undefined),
+    editReply: vi.fn(async () => undefined),
+    deleteReply: vi.fn(async () => undefined)
   };
 }
 
 describe("/howdo command", () => {
-  it("returns ephemeral help when used in the control channel", async () => {
+  it("DMs help when used in the control channel", async () => {
     const controlChannelId = "1234";
     const interaction = createInteraction(controlChannelId);
     const queueStore = new QueueStore();
@@ -58,24 +70,22 @@ describe("/howdo command", () => {
       }
     );
 
-    expect(interaction.reply).toHaveBeenCalledTimes(1);
+    expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+    expect(interaction.deleteReply).toHaveBeenCalledTimes(1);
+    expect(interaction.reply).not.toHaveBeenCalled();
     expect(interaction.followUp).not.toHaveBeenCalled();
 
-    const [payload] = interaction.reply.mock.calls[0] as [{
-      content: string;
-      ephemeral: boolean;
-    }];
+    const [message] = interaction.user.send.mock.calls[0] as [string];
 
-    expect(payload.ephemeral).toBe(true);
-    expect(payload.content).toContain("`/play <text-or-url>`");
-    expect(payload.content).toContain("`/video <text-or-url>`");
-    expect(payload.content).toContain("`/playnext <input>`");
-    expect(payload.content).toContain("`/playlist <artist-or-genre>`");
-    expect(payload.content).toContain("`/remove <number>`");
-    expect(payload.content).toContain("Queue #1 is the next song.");
-    expect(payload.content).toContain("`/jibboo <instruction>`");
-    expect(payload.content).toContain("Queue limit: 50 tracks.");
-    expect(payload.content).toContain(`Run commands in <#${controlChannelId}>.`);
+    expect(message).toContain("`/play <text-or-url>`");
+    expect(message).toContain("`/video <text-or-url>`");
+    expect(message).toContain("`/playnext <input>`");
+    expect(message).toContain("`/playlist <artist-or-genre>`");
+    expect(message).toContain("`/remove <number>`");
+    expect(message).toContain("Queue #1 is the next song.");
+    expect(message).toContain("`/jibboo <instruction>`");
+    expect(message).toContain("Queue limit: 50 tracks.");
+    expect(message).toContain(`Run commands in <#${controlChannelId}>.`);
   });
 
   it("returns channel guidance when used outside the control channel", async () => {
@@ -109,6 +119,39 @@ describe("/howdo command", () => {
 
     expect(payload.ephemeral).toBe(true);
     expect(payload.content).toBe(`Please run this command in <#${controlChannelId}>.`);
+    expect(interaction.user.send).not.toHaveBeenCalled();
+  });
+
+  it("returns an ephemeral failure when DMs are blocked", async () => {
+    const controlChannelId = "1234";
+    const interaction = createInteraction(controlChannelId);
+    interaction.user.send = vi.fn(async () => {
+      throw new Error("cannot dm");
+    });
+
+    await handleChatInputCommand(
+      interaction as unknown as ChatInputCommandInteraction,
+      {
+        controlChannelId,
+        queueLimit: 50,
+        watchTogetherApplicationId: "880218394199220334",
+        queueStore: new QueueStore(),
+        voicePlayback: createVoicePlaybackStub() as any,
+        integrations: {
+          gemini: { generateReply: vi.fn(async () => "unused") },
+          youtube: {
+            searchTopVideo: vi.fn(async () => null),
+            searchSuggestions: vi.fn(async () => [])
+          }
+        }
+      }
+    );
+
+    expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+    expect(interaction.deleteReply).not.toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalledWith(
+      "I couldn't DM you instructions. Check your Discord privacy settings and try `/howdo` again."
+    );
   });
 
   it("does not call integrations or mutate queue", async () => {

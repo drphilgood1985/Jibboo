@@ -61,11 +61,30 @@ function parseSnowflake(key: string, value: string): string {
   return value;
 }
 
+function parseSnowflakeList(key: string, value: string | undefined): string[] {
+  const ids = value
+    ?.split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  if (!ids || ids.length === 0) {
+    return [];
+  }
+
+  return ids.map((id) => parseSnowflake(key, id));
+}
+
+function uniqueIds(ids: readonly string[]): string[] {
+  return [...new Set(ids)];
+}
+
 export interface AppEnv {
   discordToken: string;
   discordClientId: string;
   discordGuildId: string;
   controlChannelId: string;
+  postChannelId: string;
+  commandChannelIds: string[];
   youtubeApiKey: string;
   geminiApiKey: string;
   geminiModel: string;
@@ -88,12 +107,27 @@ export function loadEnv(): AppEnv {
     "CONTROL_CHANNEL_ID",
     readRequired("CONTROL_CHANNEL_ID")
   );
+  const postChannelId = parseSnowflake(
+    "POST_CHANNEL_ID",
+    parseOptional(process.env.POST_CHANNEL_ID, controlChannelId)
+  );
+  const configuredCommandChannelIds = parseSnowflakeList(
+    "MONITOR_CHANNEL_IDS",
+    process.env.MONITOR_CHANNEL_IDS
+  );
+  const commandChannelIds = uniqueIds(
+    configuredCommandChannelIds.length > 0
+      ? configuredCommandChannelIds
+      : [controlChannelId, postChannelId]
+  );
 
   return {
     discordToken: readRequired("DISCORD_TOKEN"),
     discordClientId,
     discordGuildId,
     controlChannelId,
+    postChannelId,
+    commandChannelIds,
     youtubeApiKey: readRequired("YOUTUBE_API_KEY"),
     geminiApiKey: readRequired("GEMINI_API_KEY"),
     geminiModel: parseOptional(process.env.GEMINI_MODEL, DEFAULT_GEMINI_MODEL),
