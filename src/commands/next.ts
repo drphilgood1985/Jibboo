@@ -25,20 +25,21 @@ export const nextCommand: AppCommand = {
       return;
     }
 
+    await interaction.deferReply();
+
     try {
       await context.voicePlayback.connect(guild, voiceChannel);
 
       const state = await context.voicePlayback.skipToNext(guildId);
 
-      await interaction.reply({
-        content: clampContent([formatNowPlaying(state), formatQueuePreview(state)].join("\n"))
-      });
+      await interaction.editReply(
+        clampContent([formatNowPlaying(state), formatQueuePreview(state)].join("\n"))
+      );
     } catch (error) {
       console.error("Failed to skip track:", error);
-      await interaction.reply({
-        content: "Could not skip track in voice. Check bot voice permissions and ffmpeg/yt-dlp.",
-        ephemeral: true
-      });
+      await interaction.editReply(
+        "Could not skip track in voice. Check bot voice permissions and ffmpeg/yt-dlp."
+      );
     }
   }
 };

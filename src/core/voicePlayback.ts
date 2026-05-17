@@ -30,6 +30,19 @@ interface GuildVoiceSession {
   noListenerTimeout: NodeJS.Timeout | null;
 }
 
+function isExpectedPipelineCloseError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === "EPIPE" || code === "ECONNRESET" || code === "ERR_STREAM_PREMATURE_CLOSE";
+}
+
+function handlePipelineStreamError(label: string, error: unknown): void {
+  if (isExpectedPipelineCloseError(error)) {
+    return;
+  }
+
+  console.error(`${label} stream error:`, error);
+}
+
 function normalizePlaybackUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -236,6 +249,12 @@ export class VoicePlaybackController {
     }
 
     ytdlpProcess.stdout.pipe(ffmpegProcess.stdin);
+    ytdlpProcess.stdout.on("error", (error) => {
+      handlePipelineStreamError("yt-dlp stdout", error);
+    });
+    ffmpegProcess.stdin.on("error", (error) => {
+      handlePipelineStreamError("ffmpeg stdin", error);
+    });
 
     ytdlpProcess.on("error", (error) => {
       console.error("yt-dlp process error:", error);
@@ -275,6 +294,9 @@ export class VoicePlaybackController {
       this.stopPipeline(pipeline);
       throw new Error("ffmpeg output stream not available.");
     }
+    ffmpegProcess.stdout.on("error", (error) => {
+      handlePipelineStreamError("ffmpeg stdout", error);
+    });
 
     const resource = createAudioResource(ffmpegProcess.stdout, {
       inputType: StreamType.Raw,
@@ -469,6 +491,10 @@ export class VoicePlaybackController {
   }
 
   private stopPipeline(pipeline: TrackPipeline): void {
+    if (pipeline.ytdlpProcess?.stdout && pipeline.ffmpegProcess?.stdin) {
+      pipeline.ytdlpProcess.stdout.unpipe(pipeline.ffmpegProcess.stdin);
+    }
+
     if (pipeline.ytdlpProcess) {
       pipeline.ytdlpProcess.kill("SIGTERM");
     }

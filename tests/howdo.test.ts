@@ -72,6 +72,7 @@ describe("/howdo command", () => {
     expect(payload.content).toContain("`/playnext <input>`");
     expect(payload.content).toContain("`/playlist <artist-or-genre>`");
     expect(payload.content).toContain("`/remove <number>`");
+    expect(payload.content).toContain("Queue #1 is the next song.");
     expect(payload.content).toContain("`/jibboo <instruction>`");
     expect(payload.content).toContain("Queue limit: 50 tracks.");
     expect(payload.content).toContain(`Run commands in <#${controlChannelId}>.`);

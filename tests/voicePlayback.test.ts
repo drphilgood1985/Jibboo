@@ -180,6 +180,16 @@ describe("VoicePlaybackController", () => {
     expect(initialProcesses.every((process) => process.kill.mock.calls[0]?.[0] === "SIGTERM")).toBe(
       true
     );
+    const oldFfmpegProcess = initialProcesses[1];
+    if (!oldFfmpegProcess) {
+      throw new Error("Expected the original ffmpeg process to exist");
+    }
+    expect(() => {
+      oldFfmpegProcess.stdin.emit(
+        "error",
+        Object.assign(new Error("write EPIPE"), { code: "EPIPE" })
+      );
+    }).not.toThrow();
 
     player.state = {
       status: AudioPlayerStatus.Idle

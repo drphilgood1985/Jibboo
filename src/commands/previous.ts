@@ -25,21 +25,21 @@ export const previousCommand: AppCommand = {
       return;
     }
 
+    await interaction.deferReply();
+
     try {
       await context.voicePlayback.connect(guild, voiceChannel);
 
       const state = await context.voicePlayback.skipToPrevious(guildId);
 
-      await interaction.reply({
-        content: clampContent([formatNowPlaying(state), formatQueuePreview(state)].join("\n"))
-      });
+      await interaction.editReply(
+        clampContent([formatNowPlaying(state), formatQueuePreview(state)].join("\n"))
+      );
     } catch (error) {
       console.error("Failed to go to previous track:", error);
-      await interaction.reply({
-        content:
-          "Could not play previous track in voice. Check bot voice permissions and ffmpeg/yt-dlp.",
-        ephemeral: true
-      });
+      await interaction.editReply(
+        "Could not play previous track in voice. Check bot voice permissions and ffmpeg/yt-dlp."
+      );
     }
   }
 };
