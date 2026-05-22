@@ -170,7 +170,11 @@ export class VoicePlaybackController {
       return false;
     }
 
-    const { pipeline, resource } = this.createTrackResource(guildId, currentTrack.url, state.volume);
+    const { pipeline, resource } = this.createTrackResource(
+      guildId,
+      currentTrack.playbackUrl ?? currentTrack.url,
+      state.volume
+    );
     const previousPipeline = this.getCurrentTrackPipeline(session);
 
     try {

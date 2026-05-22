@@ -1,9 +1,10 @@
-import type { YoutubeSearchResult } from "../integrations/types.js";
+import type { QueueableMedia } from "../integrations/types.js";
 
 export interface Track {
   id: string;
   title: string;
   url: string;
+  playbackUrl?: string;
   channelTitle: string;
   requestedByUserId: string;
 }
@@ -48,7 +49,7 @@ export class QueueStore {
 
   enqueue(
     guildId: string,
-    video: YoutubeSearchResult,
+    media: QueueableMedia,
     requestedByUserId: string,
     mode: "end" | "next"
   ): EnqueueResult {
@@ -56,11 +57,14 @@ export class QueueStore {
 
     const track: Track = {
       id: String(this.nextTrackOrdinal++),
-      title: video.title,
-      url: video.url,
-      channelTitle: video.channelTitle,
+      title: media.title,
+      url: media.url,
+      channelTitle: media.channelTitle,
       requestedByUserId
     };
+    if (media.playbackUrl) {
+      track.playbackUrl = media.playbackUrl;
+    }
 
     let startedPlaying = false;
 

@@ -9,6 +9,8 @@ describe("command registration", () => {
     expect(commandNames).toContain("play");
     expect(commandNames).toContain("video");
     expect(commandNames).toContain("playnext");
+    expect(commandNames).toContain("suno");
+    expect(commandNames).toContain("sunonext");
     expect(commandNames).toContain("playlist");
     expect(commandNames).toContain("remove");
     expect(commandNames).toContain("jibboo");

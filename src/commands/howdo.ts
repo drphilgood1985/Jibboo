@@ -9,6 +9,8 @@ const HOWDO_COMMANDS = [
   "`/play <text-or-url>`",
   "`/video <text-or-url>`",
   "`/playnext <input>`",
+  "`/suno <url>`",
+  "`/sunonext <url>`",
   "`/playlist <artist-or-genre>`",
   "`/next`",
   "`/previous`",
@@ -32,12 +34,12 @@ export function buildHowdoMessage(
 
   const lines = [
     "Jibboo quick start:",
-    `- Queue music: ${HOWDO_COMMANDS[0]}, ${HOWDO_COMMANDS[1]}, ${HOWDO_COMMANDS[2]}.`,
-    `- Playlist mode: ${HOWDO_COMMANDS[3]} starts compatible autoplay; \`/playlist off\` stops it.`,
-    `- Playback: ${HOWDO_COMMANDS[4]}, ${HOWDO_COMMANDS[5]}, ${HOWDO_COMMANDS[8]}.`,
-    `- Edit queue: ${HOWDO_COMMANDS[6]} removes the numbered queued song shown under Queue. The current song is not #1; Queue #1 is the next song.`,
-    `- Volume: ${HOWDO_COMMANDS[7]}.`,
-    `- Assistant: ${HOWDO_COMMANDS[9]}.`,
+    `- Queue music: ${HOWDO_COMMANDS[0]}, ${HOWDO_COMMANDS[1]}, ${HOWDO_COMMANDS[2]}, ${HOWDO_COMMANDS[3]}, ${HOWDO_COMMANDS[4]}.`,
+    `- Playlist mode: ${HOWDO_COMMANDS[5]} starts compatible autoplay; \`/playlist off\` stops it.`,
+    `- Playback: ${HOWDO_COMMANDS[6]}, ${HOWDO_COMMANDS[7]}, ${HOWDO_COMMANDS[10]}.`,
+    `- Edit queue: ${HOWDO_COMMANDS[8]} removes the numbered queued song shown under Queue. The current song is not #1; Queue #1 is the next song.`,
+    `- Volume: ${HOWDO_COMMANDS[9]}.`,
+    `- Assistant: ${HOWDO_COMMANDS[11]}.`,
     "- Control embed: buttons for Previous/Pause/Resume/Next/Volume, plus Suggestions to queue a recommended track next.",
     "- Default volume: 20%.",
     "",
@@ -46,11 +48,11 @@ export function buildHowdoMessage(
     ...(shouldMentionPostChannel
       ? [`- Public bot posts go to <#${postChannelId}>.`]
       : []),
-    "- Join a voice channel before /play, /playnext, /playlist, /video, /next, and /previous.",
+    "- Join a voice channel before /play, /playnext, /suno, /sunonext, /playlist, /video, /next, and /previous.",
     "- Playback stops when no human users remain in voice.",
     `- Queue limit: ${queueLimit} tracks.`,
     "",
-    `Tip: Run ${HOWDO_COMMANDS[10]} anytime for this guide.`
+    `Tip: Run ${HOWDO_COMMANDS[12]} anytime for this guide.`
   ];
 
   return lines.join("\n");

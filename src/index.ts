@@ -8,6 +8,7 @@ import { handleChatInputCommand } from "./discord/interactionHandler.js";
 import { routePublicRepliesToChannel } from "./discord/interactionReplyRouter.js";
 import { registerGuildCommands } from "./discord/registerGuildCommands.js";
 import { createGeminiService } from "./integrations/geminiService.js";
+import { createSunoService } from "./integrations/sunoService.js";
 import { createYoutubeService } from "./integrations/youtubeService.js";
 import { handleControlInteraction } from "./ui/controlInteractionHandler.js";
 import { ControlPanelController } from "./ui/controlPanel.js";
@@ -22,7 +23,8 @@ const integrations = {
   youtube: createYoutubeService({
     apiKey: env.youtubeApiKey,
     ytdlpCookiesPath: env.ytdlpCookiesPath
-  })
+  }),
+  suno: createSunoService()
 };
 const controlPanel = new ControlPanelController(
   queueStore,
@@ -35,6 +37,8 @@ const PANEL_REFRESH_COMMANDS = new Set([
   "play",
   "video",
   "playnext",
+  "suno",
+  "sunonext",
   "playlist",
   "next",
   "previous",

@@ -80,6 +80,8 @@ describe("/howdo command", () => {
     expect(message).toContain("`/play <text-or-url>`");
     expect(message).toContain("`/video <text-or-url>`");
     expect(message).toContain("`/playnext <input>`");
+    expect(message).toContain("`/suno <url>`");
+    expect(message).toContain("`/sunonext <url>`");
     expect(message).toContain("`/playlist <artist-or-genre>`");
     expect(message).toContain("`/remove <number>`");
     expect(message).toContain("Queue #1 is the next song.");

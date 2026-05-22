@@ -8,6 +8,7 @@ import { playnextCommand } from "../commands/playnext.js";
 import { playlistCommand } from "../commands/playlist.js";
 import { previousCommand } from "../commands/previous.js";
 import { removeCommand } from "../commands/remove.js";
+import { sunoCommand, sunonextCommand } from "../commands/suno.js";
 import { videoCommand } from "../commands/video.js";
 import { volumeCommand } from "../commands/volume.js";
 import type { AppCommand } from "../types/appCommand.js";
@@ -16,6 +17,8 @@ export const commandRegistry: AppCommand[] = [
   playCommand,
   videoCommand,
   playnextCommand,
+  sunoCommand,
+  sunonextCommand,
   playlistCommand,
   nextCommand,
   previousCommand,
