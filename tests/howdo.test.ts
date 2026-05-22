@@ -80,11 +80,11 @@ describe("/howdo command", () => {
     expect(message).toContain("`/play <text-or-url>`");
     expect(message).toContain("`/video <text-or-url>`");
     expect(message).toContain("`/playnext <text-or-url>`");
-    expect(message).toContain("`/suno <url>`");
-    expect(message).toContain("`/sunonext <url>`");
+    expect(message).not.toContain("`/suno <url>`");
+    expect(message).not.toContain("`/sunonext <url>`");
     expect(message).toContain("`/playlist <artist-or-genre>`");
     expect(message).toContain("`/stop`");
-    expect(message).toContain("accept song text or exact YouTube links");
+    expect(message).toContain("accept song text, YouTube links, Suno links, or other playable links");
     expect(message).toContain("stops playback, disconnects, clears the active queue");
     expect(message).toContain("/stop can be used from the command channel without joining voice.");
     expect(message).toContain("`/remove <number>`");

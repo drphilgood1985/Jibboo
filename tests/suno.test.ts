@@ -29,7 +29,7 @@ function createVoicePlaybackStub(options: { hasSession?: boolean; isPlayerIdle?:
   };
 }
 
-function createInteraction(commandName = "suno") {
+function createInteraction(commandName = "play") {
   const voiceChannel = { id: "voice-1" };
   const guild = {
     id: "guild-1",
@@ -87,8 +87,8 @@ function createContext(
   };
 }
 
-describe("/suno command", () => {
-  it("queues a public Suno song URL through the Suno integration", async () => {
+describe("Suno links through /play and /playnext", () => {
+  it("queues a public Suno song URL through /play", async () => {
     const interaction = createInteraction();
     const queueStore = new QueueStore();
     const voicePlayback = createVoicePlaybackStub();
@@ -109,7 +109,7 @@ describe("/suno command", () => {
       channelTitle: "Suno"
     });
     expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining("Source: Suno audio.")
+      expect.stringContaining("Source: Suno audio (Suno).")
     );
   });
 
@@ -162,8 +162,8 @@ describe("/suno command", () => {
     );
   });
 
-  it("queues Suno songs to play next with /sunonext", async () => {
-    const interaction = createInteraction("sunonext");
+  it("queues Suno songs to play next with /playnext", async () => {
+    const interaction = createInteraction("playnext");
     const queueStore = new QueueStore();
     const voicePlayback = createVoicePlaybackStub({
       hasSession: true,

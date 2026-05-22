@@ -37,8 +37,6 @@ const PANEL_REFRESH_COMMANDS = new Set([
   "play",
   "video",
   "playnext",
-  "suno",
-  "sunonext",
   "playlist",
   "next",
   "previous",

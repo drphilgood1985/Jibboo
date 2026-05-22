@@ -2,17 +2,18 @@ import { SlashCommandBuilder } from "discord.js";
 import { clampContent, requireGuildId, requireMemberVoiceChannel } from "./shared.js";
 import { formatNowPlaying, formatQueuePreview } from "../core/queueStore.js";
 import type { AppCommand } from "../types/appCommand.js";
+import { resolveInputMedia } from "./mediaResolver.js";
 
 export const playCommand: AppCommand = {
   name: "play",
   controlChannelOnly: true,
   data: new SlashCommandBuilder()
     .setName("play")
-    .setDescription("Search YouTube Music or queue an exact YouTube link.")
+    .setDescription("Search YouTube Music or queue a playable link.")
     .addStringOption((option) =>
       option
         .setName("input")
-        .setDescription("Song name or YouTube URL text")
+        .setDescription("Song name, YouTube URL, Suno URL, or other playable link")
         .setRequired(true)
     ),
   async execute(interaction, context) {
@@ -40,9 +41,10 @@ export const playCommand: AppCommand = {
     await interaction.deferReply();
 
     try {
-      const result = await context.integrations.youtube.searchTopVideo(input);
+      const resolved = await resolveInputMedia(input, context);
+      const result = resolved.media;
       if (!result) {
-        await interaction.editReply("No matching YouTube Music track was found.");
+        await interaction.editReply(resolved.notFoundMessage);
         return;
       }
 

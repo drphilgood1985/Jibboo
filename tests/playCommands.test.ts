@@ -81,7 +81,7 @@ function createContext(
   };
 }
 
-describe("/play and /playnext YouTube links", () => {
+describe("/play and /playnext links", () => {
   it("queues a pasted YouTube link with /play", async () => {
     const interaction = createInteraction("play");
     const queueStore = new QueueStore();
@@ -152,6 +152,30 @@ describe("/play and /playnext YouTube links", () => {
     expect(voicePlayback.playCurrent).not.toHaveBeenCalled();
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.stringContaining(`Queued for next: **${LINKED_VIDEO.title}**`)
+    );
+  });
+
+  it("queues a non-YouTube playable URL directly without searching YouTube", async () => {
+    const directUrl = "https://cdn.example.com/audio/my-song.mp3";
+    const interaction = createInteraction("play", directUrl);
+    const queueStore = new QueueStore();
+    const voicePlayback = createVoicePlaybackStub();
+    const searchTopVideo = vi.fn(async () => null);
+
+    await handleChatInputCommand(
+      interaction as unknown as ChatInputCommandInteraction,
+      createContext(queueStore, voicePlayback, searchTopVideo)
+    );
+
+    expect(searchTopVideo).not.toHaveBeenCalled();
+    expect(queueStore.getSnapshot("guild-1").current).toMatchObject({
+      title: "my song",
+      url: directUrl,
+      channelTitle: "cdn.example.com"
+    });
+    expect(voicePlayback.playCurrent).toHaveBeenCalledWith("guild-1", false);
+    expect(interaction.editReply).toHaveBeenCalledWith(
+      expect.stringContaining("Source: Direct link audio (cdn.example.com).")
     );
   });
 });
