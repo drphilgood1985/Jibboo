@@ -8,7 +8,7 @@ export const playCommand: AppCommand = {
   controlChannelOnly: true,
   data: new SlashCommandBuilder()
     .setName("play")
-    .setDescription("Search YouTube Music and add the best match to the queue.")
+    .setDescription("Search YouTube Music or queue an exact YouTube link.")
     .addStringOption((option) =>
       option
         .setName("input")
@@ -69,12 +69,12 @@ export const playCommand: AppCommand = {
       const lines = enqueueResult.startedPlaying
         ? [
             `Now playing: **${result.title}**`,
-            `Source: YouTube Music audio (${result.channelTitle}).`,
+            `Source: ${result.sourceName ?? "YouTube Music"} audio (${result.channelTitle}).`,
             `Requested by <@${interaction.user.id}>.`
           ]
         : [
             `Added to queue: **${result.title}**`,
-            `Source: YouTube Music audio (${result.channelTitle}).`,
+            `Source: ${result.sourceName ?? "YouTube Music"} audio (${result.channelTitle}).`,
             formatNowPlaying(enqueueResult.state),
             formatQueuePreview(enqueueResult.state)
           ];

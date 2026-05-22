@@ -8,12 +8,13 @@ import type { AppCommand } from "../types/appCommand.js";
 const HOWDO_COMMANDS = [
   "`/play <text-or-url>`",
   "`/video <text-or-url>`",
-  "`/playnext <input>`",
+  "`/playnext <text-or-url>`",
   "`/suno <url>`",
   "`/sunonext <url>`",
   "`/playlist <artist-or-genre>`",
   "`/next`",
   "`/previous`",
+  "`/stop`",
   "`/remove <number>`",
   "`/volume <0-100>`",
   "`/nowplaying`",
@@ -34,12 +35,12 @@ export function buildHowdoMessage(
 
   const lines = [
     "Jibboo quick start:",
-    `- Queue music: ${HOWDO_COMMANDS[0]}, ${HOWDO_COMMANDS[1]}, ${HOWDO_COMMANDS[2]}, ${HOWDO_COMMANDS[3]}, ${HOWDO_COMMANDS[4]}.`,
+    `- Queue music: ${HOWDO_COMMANDS[0]} and ${HOWDO_COMMANDS[2]} accept song text or exact YouTube links. ${HOWDO_COMMANDS[1]}, ${HOWDO_COMMANDS[3]}, and ${HOWDO_COMMANDS[4]} queue video/Suno links.`,
     `- Playlist mode: ${HOWDO_COMMANDS[5]} starts compatible autoplay; \`/playlist off\` stops it.`,
-    `- Playback: ${HOWDO_COMMANDS[6]}, ${HOWDO_COMMANDS[7]}, ${HOWDO_COMMANDS[10]}.`,
-    `- Edit queue: ${HOWDO_COMMANDS[8]} removes the numbered queued song shown under Queue. The current song is not #1; Queue #1 is the next song.`,
-    `- Volume: ${HOWDO_COMMANDS[9]}.`,
-    `- Assistant: ${HOWDO_COMMANDS[11]}.`,
+    `- Playback: ${HOWDO_COMMANDS[6]}, ${HOWDO_COMMANDS[7]}, ${HOWDO_COMMANDS[11]}. ${HOWDO_COMMANDS[8]} stops playback, disconnects, clears the active queue, and stops playlist autoplay.`,
+    `- Edit queue: ${HOWDO_COMMANDS[9]} removes the numbered queued song shown under Queue. The current song is not #1; Queue #1 is the next song.`,
+    `- Volume: ${HOWDO_COMMANDS[10]}.`,
+    `- Assistant: ${HOWDO_COMMANDS[12]}.`,
     "- Control embed: buttons for Previous/Pause/Resume/Next/Volume, plus Suggestions to queue a recommended track next.",
     "- Default volume: 20%.",
     "",
@@ -48,11 +49,11 @@ export function buildHowdoMessage(
     ...(shouldMentionPostChannel
       ? [`- Public bot posts go to <#${postChannelId}>.`]
       : []),
-    "- Join a voice channel before /play, /playnext, /suno, /sunonext, /playlist, /video, /next, and /previous.",
+    "- Join a voice channel before /play, /playnext, /suno, /sunonext, /playlist, /video, /next, and /previous. /stop can be used from the command channel without joining voice.",
     "- Playback stops when no human users remain in voice.",
     `- Queue limit: ${queueLimit} tracks.`,
     "",
-    `Tip: Run ${HOWDO_COMMANDS[12]} anytime for this guide.`
+    `Tip: Run ${HOWDO_COMMANDS[13]} anytime for this guide.`
   ];
 
   return lines.join("\n");

@@ -12,6 +12,7 @@ describe("command registration", () => {
     expect(commandNames).toContain("suno");
     expect(commandNames).toContain("sunonext");
     expect(commandNames).toContain("playlist");
+    expect(commandNames).toContain("stop");
     expect(commandNames).toContain("remove");
     expect(commandNames).toContain("jibboo");
     expect(commandNames).toContain("howdo");

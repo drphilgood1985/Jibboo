@@ -32,6 +32,11 @@ export interface ClearQueueResult {
   cleared: number;
 }
 
+export interface ClearPlaybackResult {
+  state: GuildQueueState;
+  cleared: number;
+}
+
 export class QueueStore {
   private states = new Map<string, GuildQueueState>();
 
@@ -133,6 +138,20 @@ export class QueueStore {
     const state = this.ensureState(guildId);
     const cleared = state.queue.length;
     state.queue = [];
+
+    return {
+      state: this.getSnapshot(guildId),
+      cleared
+    };
+  }
+
+  clearPlayback(guildId: string): ClearPlaybackResult {
+    const state = this.ensureState(guildId);
+    const cleared = (state.current ? 1 : 0) + state.queue.length;
+
+    state.current = null;
+    state.queue = [];
+    state.history = [];
 
     return {
       state: this.getSnapshot(guildId),

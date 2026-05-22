@@ -6,13 +6,14 @@ Jibboo supports slash commands for queueing YouTube Music-biased tracks, public 
 
 ## Features
 
-- `/play <text-or-url>`: queue music and autoplay in voice.
+- `/play <text-or-url>`: search YouTube Music or queue an exact YouTube link, then autoplay in voice.
 - `/video <text-or-url>`: queue video result, post an embed, and play audio in voice.
-- `/playnext <input>`: insert the next track after current.
+- `/playnext <text-or-url>`: search YouTube Music or queue an exact YouTube link after the current track.
 - `/suno <url>`: queue a public Suno song/share URL.
 - `/sunonext <url>`: insert a public Suno song/share URL to play next.
 - `/playlist <artist-or-genre>`: enable endless compatible autoplay.
 - `/playlist off`: disable autoplay.
+- `/stop`: stop playback, disconnect from voice, clear current/upcoming tracks, and stop playlist autoplay.
 - `/next`, `/previous`, `/remove <number>`, `/volume <0-100>`, `/nowplaying`.
 - `/jibboo <instruction>`: Gemini-powered music/queue assistant.
 - `/howdo`: quick usage guide (ephemeral).
@@ -26,18 +27,21 @@ Run commands in monitored channels, usually `#chat` and `#dj-jibboo`. Public bot
 
 - `/play <text-or-url>`
 - `/video <text-or-url>`
-- `/playnext <input>`
+- `/playnext <text-or-url>`
 - `/suno <url>`
 - `/sunonext <url>`
 - `/playlist <artist-or-genre>`
 - `/playlist off`
 - `/next`
 - `/previous`
+- `/stop`
 - `/remove <number>`
 - `/volume <0-100>`
 - `/nowplaying`
 - `/jibboo <instruction>`
 - `/howdo`
+
+`/play` and `/playnext` accept normal search text or direct YouTube links such as `https://www.youtube.com/watch?v=...`, `https://youtu.be/...`, `https://music.youtube.com/watch?v=...`, and Shorts links.
 
 ## Requirements
 

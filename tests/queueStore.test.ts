@@ -163,4 +163,42 @@ describe("QueueStore", () => {
     expect(result.state.current?.title).toBe("Song A");
     expect(result.state.queue).toHaveLength(0);
   });
+
+  it("clears all playback state", () => {
+    const queueStore = new QueueStore();
+    const guildId = "guild-1";
+
+    queueStore.enqueue(
+      guildId,
+      {
+        title: "Song A",
+        videoId: "a",
+        url: "https://www.youtube.com/watch?v=a",
+        channelTitle: "Channel"
+      },
+      "user-1",
+      "end"
+    );
+
+    queueStore.enqueue(
+      guildId,
+      {
+        title: "Song B",
+        videoId: "b",
+        url: "https://www.youtube.com/watch?v=b",
+        channelTitle: "Channel"
+      },
+      "user-1",
+      "end"
+    );
+
+    queueStore.next(guildId);
+
+    const result = queueStore.clearPlayback(guildId);
+
+    expect(result.cleared).toBe(1);
+    expect(result.state.current).toBeNull();
+    expect(result.state.queue).toHaveLength(0);
+    expect(result.state.history).toHaveLength(0);
+  });
 });

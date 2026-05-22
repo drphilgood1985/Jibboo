@@ -42,6 +42,7 @@ const PANEL_REFRESH_COMMANDS = new Set([
   "playlist",
   "next",
   "previous",
+  "stop",
   "remove",
   "volume",
   "nowplaying"

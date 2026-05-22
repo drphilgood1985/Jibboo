@@ -45,7 +45,7 @@ function parseQueueEditAction(instruction: string): QueueEditAction | null {
 
 function isLikelyQueueEditIntent(instruction: string): boolean {
   const hasActionVerb =
-    /\b(remove|delete|drop|clear|empty|wipe|move|swap|reorder|shuffle|skip|set|change|adjust|volume|mute|unmute)\b/i.test(
+    /\b(remove|delete|drop|clear|empty|wipe|move|swap|reorder|shuffle|skip|stop|set|change|adjust|volume|mute|unmute)\b/i.test(
       instruction
     );
   const hasQueueTarget =
@@ -60,7 +60,7 @@ function queueEditHelpMessage(): string {
     "- `remove #<queue-position>`",
     "- `clear queue`",
     "For queue removal, you can also use `/remove <number>`.",
-    "For other changes, use slash commands: `/play`, `/playnext`, `/next`, `/previous`, `/volume`."
+    "For other changes, use slash commands: `/play`, `/playnext`, `/next`, `/previous`, `/stop`, `/volume`."
   ].join("\n");
 }
 

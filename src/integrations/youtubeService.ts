@@ -30,6 +30,18 @@ interface YoutubeSearchResponse {
   };
 }
 
+interface YoutubeVideoItem {
+  id?: string;
+  snippet?: YoutubeSearchItem["snippet"];
+}
+
+interface YoutubeVideosResponse {
+  items?: YoutubeVideoItem[];
+  error?: {
+    message?: string;
+  };
+}
+
 interface YtdlpSearchResult {
   id?: string;
   title?: string;
@@ -46,6 +58,7 @@ interface YtdlpSearchCollection {
 const QUOTA_BACKOFF_MS = 15 * 60 * 1000;
 const YTDLP_TIMEOUT_MS = 25_000;
 const MUSIC_TOP_RESULT_LIMIT = 12;
+const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
 const SEARCH_STOP_WORDS = new Set([
   "a",
@@ -122,6 +135,99 @@ function toDisplayUrl(videoId: string, mode: SearchMode): string {
   }
 
   return `https://www.youtube.com/watch?v=${videoId}`;
+}
+
+function toWatchUrl(videoId: string): string {
+  return `https://www.youtube.com/watch?v=${videoId}`;
+}
+
+function sourceNameForMode(mode: SearchMode): string {
+  return mode === "music" ? "YouTube Music" : "YouTube";
+}
+
+function sanitizeYoutubeVideoId(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const videoId = value.trim();
+  return YOUTUBE_VIDEO_ID_PATTERN.test(videoId) ? videoId : null;
+}
+
+function isYoutubeHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return host === "youtube.com" || host.endsWith(".youtube.com");
+}
+
+function normalizeUrlCandidate(value: string): string {
+  return value
+    .trim()
+    .replace(/^<(.+)>$/, "$1")
+    .replace(/[),.>]+$/, "");
+}
+
+function candidateUrlsFromInput(input: string): string[] {
+  const normalized = normalizeUrlCandidate(input);
+  const candidates = new Set<string>();
+
+  candidates.add(normalized);
+
+  const explicitUrlPattern = /https?:\/\/[^\s<>]+/gi;
+  for (const match of normalized.matchAll(explicitUrlPattern)) {
+    candidates.add(normalizeUrlCandidate(match[0]));
+  }
+
+  const bareUrlPattern =
+    /(?:^|\s)((?:(?:www|music)\.)?youtube\.com\/[^\s<>]+|youtu\.be\/[^\s<>]+)/gi;
+  for (const match of normalized.matchAll(bareUrlPattern)) {
+    const bareUrl = match[1];
+    if (bareUrl) {
+      candidates.add(`https://${normalizeUrlCandidate(bareUrl)}`);
+    }
+  }
+
+  return [...candidates].filter((candidate) => candidate.length > 0);
+}
+
+function extractVideoIdFromUrl(parsed: URL): string | null {
+  const host = parsed.hostname.toLowerCase();
+
+  if (host === "youtu.be" || host.endsWith(".youtu.be")) {
+    const [videoId] = parsed.pathname.split("/").filter(Boolean);
+    return sanitizeYoutubeVideoId(videoId);
+  }
+
+  if (!isYoutubeHost(host)) {
+    return null;
+  }
+
+  const watchVideoId = sanitizeYoutubeVideoId(parsed.searchParams.get("v"));
+  if (watchVideoId) {
+    return watchVideoId;
+  }
+
+  const [kind, videoId] = parsed.pathname.split("/").filter(Boolean);
+  if (kind && ["embed", "live", "shorts", "v"].includes(kind)) {
+    return sanitizeYoutubeVideoId(videoId);
+  }
+
+  return null;
+}
+
+export function extractYoutubeVideoId(input: string): string | null {
+  for (const candidate of candidateUrlsFromInput(input)) {
+    try {
+      const parsed = new URL(candidate);
+      const videoId = extractVideoIdFromUrl(parsed);
+      if (videoId) {
+        return videoId;
+      }
+    } catch {
+      // Keep checking other URL-shaped fragments in the input.
+    }
+  }
+
+  return null;
 }
 
 function normalizeSearchText(value: string): string {
@@ -285,17 +391,24 @@ function cleanSearchResults(
 
 function toYoutubeResult(
   entry: YtdlpSearchResult,
-  mode: SearchMode
+  mode: SearchMode,
+  fallbackVideoId?: string,
+  sourceName = sourceNameForMode(mode)
 ): YoutubeSearchResult | null {
-  if (!entry.id || !entry.title) {
+  const videoId = sanitizeYoutubeVideoId(entry.id ?? fallbackVideoId);
+  if (!videoId || !entry.title) {
     return null;
   }
 
   const result: YoutubeSearchResult = {
     title: entry.title,
-    videoId: entry.id,
-    url: mode === "music" ? toDisplayUrl(entry.id, mode) : entry.webpage_url ?? toDisplayUrl(entry.id, mode),
-    channelTitle: entry.channel ?? entry.uploader ?? "Unknown channel"
+    videoId,
+    url:
+      sourceName === "YouTube"
+        ? entry.webpage_url ?? toWatchUrl(videoId)
+        : toDisplayUrl(videoId, mode),
+    channelTitle: entry.channel ?? entry.uploader ?? "Unknown channel",
+    sourceName
   };
 
   if (entry.thumbnail) {
@@ -303,6 +416,77 @@ function toYoutubeResult(
   }
 
   return result;
+}
+
+function runYtdlpVideoLookup(
+  videoId: string,
+  mode: SearchMode,
+  cookiesPath: string | null
+): Promise<YoutubeSearchResult | null> {
+  return new Promise((resolve, reject) => {
+    const process = spawn(
+      "yt-dlp",
+      withCookiesArgs(
+        ["--dump-single-json", "--no-playlist", toWatchUrl(videoId)],
+        cookiesPath
+      ),
+      { stdio: ["ignore", "pipe", "pipe"] }
+    );
+
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+
+    const timeout = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      process.kill("SIGKILL");
+      reject(new Error(`yt-dlp video lookup timed out after ${YTDLP_TIMEOUT_MS / 1000}s.`));
+    }, YTDLP_TIMEOUT_MS);
+
+    const finish = (fn: () => void) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timeout);
+      fn();
+    };
+
+    process.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+
+    process.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    process.on("error", (error) => {
+      finish(() => {
+        reject(error);
+      });
+    });
+
+    process.on("close", (code) => {
+      finish(() => {
+        if (code !== 0) {
+          reject(new Error(`yt-dlp video lookup failed with code ${code}: ${stderr.trim()}`));
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(stdout) as YtdlpSearchResult;
+          resolve(toYoutubeResult(parsed, mode, videoId, "YouTube"));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  });
 }
 
 function toYtdlpQuery(mode: SearchMode, query: string): string {
@@ -537,7 +721,8 @@ function mapApiItems(
         title,
         videoId,
         url: toDisplayUrl(videoId, mode),
-        channelTitle
+        channelTitle,
+        sourceName: sourceNameForMode(mode)
       };
 
       if (thumbnailUrl) {
@@ -547,6 +732,38 @@ function mapApiItems(
       return result;
     })
     .filter((item): item is YoutubeSearchResult => item !== null);
+}
+
+function mapApiVideoItem(
+  item: YoutubeVideoItem | undefined,
+  mode: SearchMode
+): YoutubeSearchResult | null {
+  const videoId = sanitizeYoutubeVideoId(item?.id);
+  const title = item?.snippet?.title;
+  const channelTitle = item?.snippet?.channelTitle;
+
+  if (!videoId || !title || !channelTitle) {
+    return null;
+  }
+
+  const thumbnailUrl =
+    item.snippet?.thumbnails?.high?.url ??
+    item.snippet?.thumbnails?.medium?.url ??
+    item.snippet?.thumbnails?.default?.url;
+
+  const result: YoutubeSearchResult = {
+    title,
+    videoId,
+    url: toWatchUrl(videoId),
+    channelTitle,
+    sourceName: "YouTube"
+  };
+
+  if (thumbnailUrl) {
+    result.thumbnailUrl = thumbnailUrl;
+  }
+
+  return result;
 }
 
 async function runYoutubeApiSearch(
@@ -577,6 +794,27 @@ async function runYoutubeApiSearch(
   return mapApiItems(payload.items, mode);
 }
 
+async function runYoutubeApiVideoLookup(
+  apiKey: string,
+  videoId: string,
+  mode: SearchMode
+): Promise<YoutubeSearchResult | null> {
+  const endpoint = new URL("https://www.googleapis.com/youtube/v3/videos");
+  endpoint.searchParams.set("part", "snippet");
+  endpoint.searchParams.set("id", videoId);
+  endpoint.searchParams.set("key", apiKey);
+
+  const response = await fetch(endpoint);
+  const payload = (await response.json()) as YoutubeVideosResponse;
+
+  if (!response.ok) {
+    const message = payload.error?.message ?? `YouTube API returned ${response.status}`;
+    throw new Error(message);
+  }
+
+  return mapApiVideoItem(payload.items?.[0], mode);
+}
+
 export function createYoutubeService(options: YoutubeServiceOptions): YoutubeService {
   const apiKey = options.apiKey;
   const ytdlpCookiesPath = options.ytdlpCookiesPath ?? null;
@@ -602,11 +840,40 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
     );
   }
 
+  async function resolveDirectVideo(
+    videoId: string,
+    mode: SearchMode
+  ): Promise<YoutubeSearchResult | null> {
+    if (useApiNow()) {
+      try {
+        const apiResult = await runYoutubeApiVideoLookup(apiKey, videoId, mode);
+        if (apiResult) {
+          return apiResult;
+        }
+      } catch (error) {
+        registerApiFailure(error);
+        console.error("YouTube Data API video lookup failed; falling back to yt-dlp:", error);
+      }
+    }
+
+    try {
+      return await runYtdlpVideoLookup(videoId, mode, ytdlpCookiesPath);
+    } catch (error) {
+      console.error("yt-dlp video lookup failed for YouTube URL:", error);
+      return null;
+    }
+  }
+
   return {
     async searchTopVideo(
       query: string,
       mode: SearchMode = "music"
     ): Promise<YoutubeSearchResult | null> {
+      const directVideoId = extractYoutubeVideoId(query);
+      if (directVideoId) {
+        return resolveDirectVideo(directVideoId, mode);
+      }
+
       if (!useApiNow()) {
         const fallbackResults = await runYtdlpSuggestions(
           query,
