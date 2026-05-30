@@ -48,6 +48,8 @@ Run commands in monitored channels, usually `#chat` and `#dj-jibboo`. Public bot
 - YouTube Data API key
 - Gemini API key
 
+Local npm installs include bundled `ffmpeg` and `yt-dlp` binaries for playback.
+
 ## Environment
 
 Copy `.env.example` to `.env` and set values:
@@ -69,6 +71,8 @@ Variables:
 - `GEMINI_MODEL` (optional, default `gemini-2.5-flash`)
 - `WATCH_TOGETHER_APPLICATION_ID` (optional)
 - `YTDLP_COOKIES_PATH` (optional, for authenticated yt-dlp requests)
+- `YTDLP_PATH` (optional, override yt-dlp executable path)
+- `FFMPEG_PATH` (optional, override ffmpeg executable path)
 - `QUEUE_LIMIT` (optional, default `50`)
 - `NO_LISTENER_GRACE_SECONDS` (optional, default `15`)
 

@@ -54,6 +54,16 @@ describe("YouTube music search ranking", () => {
     expect(ranked.map((entry) => entry.videoId)).toContain("cover");
   });
 
+  it("prefers results that match the requested artist over unrelated official audio", () => {
+    const ranked = rankMusicSearchResults("ren losing it", [
+      result("FISHER - Losing It (Official Audio)", "fisher", "FISHER"),
+      result("REN 'LOSING IT' LYRIC VIDEO", "lyric", "Craig Attwater"),
+      result("Ren - Losing It (FISHER Rap Version)", "ren", "Ren")
+    ]);
+
+    expect(ranked.map((entry) => entry.videoId)).toEqual(["ren", "lyric", "fisher"]);
+  });
+
   it("extracts video ids from common YouTube link formats", () => {
     expect(extractYoutubeVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(
       "dQw4w9WgXcQ"

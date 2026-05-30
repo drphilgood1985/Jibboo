@@ -13,6 +13,11 @@ import {
   StreamType
 } from "@discordjs/voice";
 import type { Guild, VoiceBasedChannel } from "discord.js";
+import {
+  buildYtdlpArgs,
+  FFMPEG_EXECUTABLE,
+  YTDLP_EXECUTABLE
+} from "../config/mediaTools.js";
 import type { GuildQueueState, QueueStore } from "./queueStore.js";
 
 interface TrackPipeline {
@@ -208,24 +213,25 @@ export class VoicePlaybackController {
     volumePercent: number
   ): { pipeline: TrackPipeline; resource: AudioResource } {
     const playbackUrl = normalizePlaybackUrl(trackUrl);
-    const ytdlpArgs = [
-      "--no-playlist",
-      ...(this.ytdlpCookiesPath
-        ? ["--cookies", this.ytdlpCookiesPath]
-        : []),
-      "--format",
-      "bestaudio[acodec!=none]/bestaudio/best[acodec!=none]/best",
-      "--output",
-      "-",
-      playbackUrl
-    ];
+    const ytdlpArgs = buildYtdlpArgs(
+      [
+        "--no-playlist",
+        ...(this.ytdlpCookiesPath ? ["--cookies", this.ytdlpCookiesPath] : []),
+        "--format",
+        "bestaudio[acodec!=none]/bestaudio/best[acodec!=none]/best",
+        "--output",
+        "-",
+        playbackUrl
+      ],
+      { includeFfmpegLocation: true }
+    );
 
-    const ytdlpProcess = spawn("yt-dlp", ytdlpArgs, {
+    const ytdlpProcess = spawn(YTDLP_EXECUTABLE, ytdlpArgs, {
       stdio: ["ignore", "pipe", "pipe"]
     });
 
     const ffmpegProcess = spawn(
-      "ffmpeg",
+      FFMPEG_EXECUTABLE,
       [
         "-hide_banner",
         "-loglevel",

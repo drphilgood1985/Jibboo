@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { buildYtdlpArgs, YTDLP_EXECUTABLE } from "../config/mediaTools.js";
 import type { YoutubeSearchResult, YoutubeService } from "./types.js";
 
 type SearchMode = "music" | "video";
@@ -237,7 +238,7 @@ function normalizeSearchText(value: string): string {
     .replace(/&#39;|&apos;/g, "'")
     .toLowerCase()
     .replace(/\[[^\]]*\]|\([^)]*\)|\{[^}]*\}/g, " ")
-    .replace(/[^a-z0-9\s&'-]/g, " ")
+    .replace(/[^a-z0-9\s&]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -252,6 +253,10 @@ function tokenizeSearchText(value: string): string[] {
 function includesAnyToken(value: string, tokens: string[]): boolean {
   const valueTokens = new Set(tokenizeSearchText(value));
   return tokens.some((token) => valueTokens.has(token));
+}
+
+function tokenSet(value: string): Set<string> {
+  return new Set(tokenizeSearchText(value));
 }
 
 function toMusicSearchQuery(query: string): string {
@@ -287,7 +292,9 @@ function scoreMusicResult(
   const normalizedQuery = normalizeSearchText(query);
   const normalizedTitle = normalizeSearchText(result.title);
   const normalizedChannel = normalizeSearchText(result.channelTitle);
-  const queryTokens = new Set(tokenizeSearchText(query));
+  const queryTokens = tokenizeSearchText(query);
+  const titleTokens = tokenSet(result.title);
+  const channelTokens = tokenSet(result.channelTitle);
   let score = 0;
 
   if (/\bofficial\s+audio\b/i.test(result.title)) {
@@ -320,20 +327,35 @@ function scoreMusicResult(
     score += 90;
   }
 
-  if (queryTokens.size > 0) {
+  if (queryTokens.length > 0) {
     let matchedTitleTokens = 0;
     let matchedChannelTokens = 0;
+    let missingTokens = 0;
 
     for (const token of queryTokens) {
-      if (normalizedTitle.includes(token)) {
+      const titleHasToken = titleTokens.has(token);
+      const channelHasToken = channelTokens.has(token);
+
+      if (titleHasToken) {
         matchedTitleTokens += 1;
-      } else if (normalizedChannel.includes(token)) {
+      }
+
+      if (channelHasToken) {
         matchedChannelTokens += 1;
+      }
+
+      if (!titleHasToken && !channelHasToken) {
+        missingTokens += 1;
       }
     }
 
-    score += (matchedTitleTokens / queryTokens.size) * 120;
-    score += (matchedChannelTokens / queryTokens.size) * 35;
+    if (missingTokens === 0) {
+      score += 120;
+    }
+
+    score += (matchedTitleTokens / queryTokens.length) * 120;
+    score += (matchedChannelTokens / queryTokens.length) * 70;
+    score -= (missingTokens / queryTokens.length) * 180;
   }
 
   for (const variant of VARIANT_PATTERNS) {
@@ -425,11 +447,8 @@ function runYtdlpVideoLookup(
 ): Promise<YoutubeSearchResult | null> {
   return new Promise((resolve, reject) => {
     const process = spawn(
-      "yt-dlp",
-      withCookiesArgs(
-        ["--dump-single-json", "--no-playlist", toWatchUrl(videoId)],
-        cookiesPath
-      ),
+      YTDLP_EXECUTABLE,
+      ytdlpArgs(["--dump-single-json", "--no-playlist", toWatchUrl(videoId)], cookiesPath),
       { stdio: ["ignore", "pipe", "pipe"] }
     );
 
@@ -511,6 +530,10 @@ function withCookiesArgs(args: string[], cookiesPath: string | null): string[] {
   return ["--cookies", cookiesPath, ...args];
 }
 
+function ytdlpArgs(args: string[], cookiesPath: string | null): string[] {
+  return buildYtdlpArgs(withCookiesArgs(args, cookiesPath));
+}
+
 function runYtdlpSuggestions(
   query: string,
   limit: number,
@@ -519,8 +542,8 @@ function runYtdlpSuggestions(
 ): Promise<YoutubeSearchResult[]> {
   return new Promise((resolve, reject) => {
     const process = spawn(
-      "yt-dlp",
-      withCookiesArgs(
+      YTDLP_EXECUTABLE,
+      ytdlpArgs(
         ["--dump-single-json", "--no-playlist", ytdlpSearchTerm(mode, query, limit)],
         cookiesPath
       ),
@@ -595,8 +618,8 @@ function runYtdlpMixRequest(
 ): Promise<YoutubeSearchResult[]> {
   return new Promise((resolve, reject) => {
     const process = spawn(
-      "yt-dlp",
-      withCookiesArgs(
+      YTDLP_EXECUTABLE,
+      ytdlpArgs(
         [
           "--flat-playlist",
           "--dump-single-json",
