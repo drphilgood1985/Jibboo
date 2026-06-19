@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { Client, GatewayIntentBits } from "discord.js";
+import { Client, Events, GatewayIntentBits } from "discord.js";
 import { AutoplayController } from "./core/autoplayController.js";
 import { loadEnv } from "./config/env.js";
 import { QueueStore } from "./core/queueStore.js";
@@ -72,8 +72,8 @@ voicePlayback = new VoicePlaybackController(
   env.ytdlpCookiesPath
 );
 
-client.once("ready", () => {
-  console.log(`Logged in as ${client.user?.tag ?? "unknown-user"}`);
+client.once(Events.ClientReady, (readyClient) => {
+  console.log(`Logged in as ${readyClient.user.tag}`);
 });
 
 client.on("interactionCreate", async (interaction) => {
