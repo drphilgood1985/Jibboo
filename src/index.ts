@@ -8,6 +8,7 @@ import { handleChatInputCommand } from "./discord/interactionHandler.js";
 import { routePublicRepliesToChannel } from "./discord/interactionReplyRouter.js";
 import { registerGuildCommands } from "./discord/registerGuildCommands.js";
 import { createGeminiService } from "./integrations/geminiService.js";
+import { createSpotifyService } from "./integrations/spotifyService.js";
 import { createSunoService } from "./integrations/sunoService.js";
 import { createYoutubeService } from "./integrations/youtubeService.js";
 import { handleControlInteraction } from "./ui/controlInteractionHandler.js";
@@ -24,7 +25,8 @@ const integrations = {
     apiKey: env.youtubeApiKey,
     ytdlpCookiesPath: env.ytdlpCookiesPath
   }),
-  suno: createSunoService()
+  suno: createSunoService(),
+  spotify: createSpotifyService()
 };
 const controlPanel = new ControlPanelController(
   queueStore,

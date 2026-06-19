@@ -8,6 +8,7 @@ export interface QueueableMedia {
   url: string;
   playbackUrl?: string;
   channelTitle: string;
+  durationSeconds?: number;
   thumbnailUrl?: string;
   sourceName?: string;
 }
@@ -16,20 +17,27 @@ export interface YoutubeSearchResult extends QueueableMedia {
   videoId: string;
 }
 
+export interface YoutubeLookupOptions {
+  allowFallback?: boolean;
+}
+
 export interface YoutubeService {
   searchTopVideo: (
     query: string,
-    mode?: "music" | "video"
+    mode?: "music" | "video",
+    options?: YoutubeLookupOptions
   ) => Promise<YoutubeSearchResult | null>;
   searchSuggestions: (
     query: string,
     limit: number,
-    mode?: "music" | "video"
+    mode?: "music" | "video",
+    options?: YoutubeLookupOptions
   ) => Promise<YoutubeSearchResult[]>;
   searchRelatedSuggestions?: (
     videoId: string,
     limit: number,
-    mode?: "music" | "video"
+    mode?: "music" | "video",
+    options?: YoutubeLookupOptions
   ) => Promise<YoutubeSearchResult[]>;
 }
 
@@ -46,8 +54,23 @@ export interface SunoService {
   resolveSong: (input: string) => Promise<SunoSong | null>;
 }
 
+export interface SpotifyTrack {
+  trackId: string;
+  title: string;
+  artistName: string | null;
+  pageUrl: string;
+  searchQuery: string;
+  thumbnailUrl?: string;
+}
+
+export interface SpotifyService {
+  isSpotifyUrl: (input: string) => boolean;
+  resolveTrack: (input: string) => Promise<SpotifyTrack | null>;
+}
+
 export interface IntegrationClients {
   gemini: GeminiService;
   youtube: YoutubeService;
   suno?: SunoService;
+  spotify?: SpotifyService;
 }

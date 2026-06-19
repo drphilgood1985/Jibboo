@@ -9,11 +9,11 @@ export const playCommand: AppCommand = {
   controlChannelOnly: true,
   data: new SlashCommandBuilder()
     .setName("play")
-    .setDescription("Search YouTube Music or queue a playable link.")
+    .setDescription("Search YouTube Music or queue a supported link.")
     .addStringOption((option) =>
       option
         .setName("input")
-        .setDescription("Song name, YouTube URL, Suno URL, or other playable link")
+        .setDescription("Song name, YouTube/Spotify/Suno URL, or other playable link")
         .setRequired(true)
     ),
   async execute(interaction, context) {

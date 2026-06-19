@@ -1,6 +1,10 @@
 import { spawn } from "node:child_process";
 import { buildYtdlpArgs, YTDLP_EXECUTABLE } from "../config/mediaTools.js";
-import type { YoutubeSearchResult, YoutubeService } from "./types.js";
+import type {
+  YoutubeLookupOptions,
+  YoutubeSearchResult,
+  YoutubeService
+} from "./types.js";
 
 type SearchMode = "music" | "video";
 
@@ -49,6 +53,7 @@ interface YtdlpSearchResult {
   webpage_url?: string;
   channel?: string;
   uploader?: string;
+  duration?: number;
   thumbnail?: string;
 }
 
@@ -57,8 +62,11 @@ interface YtdlpSearchCollection {
 }
 
 const QUOTA_BACKOFF_MS = 15 * 60 * 1000;
-const YTDLP_TIMEOUT_MS = 25_000;
+const YTDLP_VIDEO_LOOKUP_TIMEOUT_MS = 25_000;
+const YTDLP_SEARCH_TIMEOUT_MS = 12_000;
+const YTDLP_MIX_TIMEOUT_MS = 10_000;
 const MUSIC_TOP_RESULT_LIMIT = 12;
+const YTDLP_MUSIC_TOP_RESULT_LIMIT = 5;
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
 const SEARCH_STOP_WORDS = new Set([
@@ -283,7 +291,8 @@ function hasReactionOrCommentarySignal(result: YoutubeSearchResult): boolean {
 
 function scoreMusicResult(
   query: string,
-  result: YoutubeSearchResult
+  result: YoutubeSearchResult,
+  medianDurationSeconds: number | null = null
 ): { blocked: boolean; score: number } {
   if (hasReactionOrCommentarySignal(result)) {
     return { blocked: true, score: Number.NEGATIVE_INFINITY };
@@ -375,18 +384,59 @@ function scoreMusicResult(
     score -= variant.penalty;
   }
 
+  if (medianDurationSeconds && result.durationSeconds) {
+    const durationRatio = result.durationSeconds / medianDurationSeconds;
+
+    if (result.durationSeconds < 60) {
+      return { blocked: true, score: Number.NEGATIVE_INFINITY };
+    }
+
+    if (durationRatio < 0.82) {
+      score -= Math.min(260, (0.82 - durationRatio) * 900);
+    } else if (durationRatio > 1.35 && !/\b(?:live|extended|loop|hour)\b/i.test(query)) {
+      score -= Math.min(220, (durationRatio - 1.35) * 260);
+    }
+  }
+
   return { blocked: false, score };
+}
+
+function medianDurationSeconds(results: YoutubeSearchResult[]): number | null {
+  const durations = results
+    .map((result) => result.durationSeconds)
+    .filter((duration): duration is number => typeof duration === "number")
+    .filter((duration) => duration >= 60 && duration <= 900)
+    .sort((left, right) => left - right);
+
+  if (durations.length < 3) {
+    return null;
+  }
+
+  const middle = Math.floor(durations.length / 2);
+  const middleDuration = durations[middle];
+  if (durations.length % 2 === 1) {
+    return middleDuration ?? null;
+  }
+
+  const previousDuration = durations[middle - 1];
+  if (previousDuration === undefined || middleDuration === undefined) {
+    return null;
+  }
+
+  return (previousDuration + middleDuration) / 2;
 }
 
 export function rankMusicSearchResults(
   query: string,
   results: YoutubeSearchResult[]
 ): YoutubeSearchResult[] {
+  const medianDuration = medianDurationSeconds(results);
+
   return results
     .map((result, index) => ({
       index,
       result,
-      ...scoreMusicResult(query, result)
+      ...scoreMusicResult(query, result, medianDuration)
     }))
     .filter((entry) => !entry.blocked)
     .sort((left, right) => {
@@ -433,6 +483,10 @@ function toYoutubeResult(
     sourceName
   };
 
+  if (typeof entry.duration === "number") {
+    result.durationSeconds = entry.duration;
+  }
+
   if (entry.thumbnail) {
     result.thumbnailUrl = entry.thumbnail;
   }
@@ -463,8 +517,12 @@ function runYtdlpVideoLookup(
 
       settled = true;
       process.kill("SIGKILL");
-      reject(new Error(`yt-dlp video lookup timed out after ${YTDLP_TIMEOUT_MS / 1000}s.`));
-    }, YTDLP_TIMEOUT_MS);
+      reject(
+        new Error(
+          `yt-dlp video lookup timed out after ${YTDLP_VIDEO_LOOKUP_TIMEOUT_MS / 1000}s.`
+        )
+      );
+    }, YTDLP_VIDEO_LOOKUP_TIMEOUT_MS);
 
     const finish = (fn: () => void) => {
       if (settled) {
@@ -534,6 +592,14 @@ function ytdlpArgs(args: string[], cookiesPath: string | null): string[] {
   return buildYtdlpArgs(withCookiesArgs(args, cookiesPath));
 }
 
+function allowFallback(options: YoutubeLookupOptions | undefined): boolean {
+  return options?.allowFallback ?? true;
+}
+
+function topResultFallbackLimit(mode: SearchMode): number {
+  return mode === "music" ? YTDLP_MUSIC_TOP_RESULT_LIMIT : 1;
+}
+
 function runYtdlpSuggestions(
   query: string,
   limit: number,
@@ -561,8 +627,8 @@ function runYtdlpSuggestions(
 
       settled = true;
       process.kill("SIGKILL");
-      reject(new Error(`yt-dlp search timed out after ${YTDLP_TIMEOUT_MS / 1000}s.`));
-    }, YTDLP_TIMEOUT_MS);
+      reject(new Error(`yt-dlp search timed out after ${YTDLP_SEARCH_TIMEOUT_MS / 1000}s.`));
+    }, YTDLP_SEARCH_TIMEOUT_MS);
 
     const finish = (fn: () => void) => {
       if (settled) {
@@ -643,8 +709,8 @@ function runYtdlpMixRequest(
 
       settled = true;
       process.kill("SIGKILL");
-      reject(new Error(`yt-dlp mix lookup timed out after ${YTDLP_TIMEOUT_MS / 1000}s.`));
-    }, YTDLP_TIMEOUT_MS);
+      reject(new Error(`yt-dlp mix lookup timed out after ${YTDLP_MIX_TIMEOUT_MS / 1000}s.`));
+    }, YTDLP_MIX_TIMEOUT_MS);
 
     const finish = (fn: () => void) => {
       if (settled) {
@@ -865,7 +931,8 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
 
   async function resolveDirectVideo(
     videoId: string,
-    mode: SearchMode
+    mode: SearchMode,
+    lookupOptions?: YoutubeLookupOptions
   ): Promise<YoutubeSearchResult | null> {
     if (useApiNow()) {
       try {
@@ -879,6 +946,10 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
       }
     }
 
+    if (!allowFallback(lookupOptions)) {
+      return null;
+    }
+
     try {
       return await runYtdlpVideoLookup(videoId, mode, ytdlpCookiesPath);
     } catch (error) {
@@ -890,17 +961,22 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
   return {
     async searchTopVideo(
       query: string,
-      mode: SearchMode = "music"
+      mode: SearchMode = "music",
+      lookupOptions?: YoutubeLookupOptions
     ): Promise<YoutubeSearchResult | null> {
       const directVideoId = extractYoutubeVideoId(query);
       if (directVideoId) {
-        return resolveDirectVideo(directVideoId, mode);
+        return resolveDirectVideo(directVideoId, mode, lookupOptions);
       }
 
       if (!useApiNow()) {
+        if (!allowFallback(lookupOptions)) {
+          return null;
+        }
+
         const fallbackResults = await runYtdlpSuggestions(
           query,
-          mode === "music" ? MUSIC_TOP_RESULT_LIMIT : 1,
+          topResultFallbackLimit(mode),
           mode,
           ytdlpCookiesPath
         );
@@ -919,19 +995,28 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           return rankedApiResults[0] ?? null;
         }
 
+        if (!allowFallback(lookupOptions)) {
+          return null;
+        }
+
         const fallbackResults = await runYtdlpSuggestions(
           query,
-          mode === "music" ? MUSIC_TOP_RESULT_LIMIT : 1,
+          topResultFallbackLimit(mode),
           mode,
           ytdlpCookiesPath
         );
         return cleanSearchResults(query, fallbackResults, mode)[0] ?? null;
       } catch (error) {
         registerApiFailure(error);
+        if (!allowFallback(lookupOptions)) {
+          console.error("YouTube Data API search failed; yt-dlp fallback disabled:", error);
+          return null;
+        }
+
         console.error("YouTube Data API search failed; falling back to yt-dlp search:", error);
         const fallbackResults = await runYtdlpSuggestions(
           query,
-          mode === "music" ? MUSIC_TOP_RESULT_LIMIT : 1,
+          topResultFallbackLimit(mode),
           mode,
           ytdlpCookiesPath
         );
@@ -942,15 +1027,20 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
     async searchSuggestions(
       query: string,
       limit: number,
-      mode: SearchMode = "music"
+      mode: SearchMode = "music",
+      lookupOptions?: YoutubeLookupOptions
     ): Promise<YoutubeSearchResult[]> {
       const boundedLimit = Math.max(1, Math.min(10, limit));
       const fetchLimit =
         mode === "music" ? Math.max(boundedLimit, Math.min(25, boundedLimit * 3)) : boundedLimit;
       if (!useApiNow()) {
+        if (!allowFallback(lookupOptions)) {
+          return [];
+        }
+
         const fallbackResults = await runYtdlpSuggestions(
           query,
-          fetchLimit,
+          Math.min(fetchLimit, YTDLP_MUSIC_TOP_RESULT_LIMIT),
           mode,
           ytdlpCookiesPath
         );
@@ -964,19 +1054,28 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           return rankedApiResults.slice(0, boundedLimit);
         }
 
+        if (!allowFallback(lookupOptions)) {
+          return [];
+        }
+
         const fallbackResults = await runYtdlpSuggestions(
           query,
-          fetchLimit,
+          Math.min(fetchLimit, YTDLP_MUSIC_TOP_RESULT_LIMIT),
           mode,
           ytdlpCookiesPath
         );
         return cleanSearchResults(query, fallbackResults, mode).slice(0, boundedLimit);
       } catch (error) {
         registerApiFailure(error);
+        if (!allowFallback(lookupOptions)) {
+          console.error("YouTube Data API suggestions failed; yt-dlp fallback disabled:", error);
+          return [];
+        }
+
         console.error("YouTube Data API suggestions failed; falling back to yt-dlp search:", error);
         const fallbackResults = await runYtdlpSuggestions(
           query,
-          fetchLimit,
+          Math.min(fetchLimit, YTDLP_MUSIC_TOP_RESULT_LIMIT),
           mode,
           ytdlpCookiesPath
         );
@@ -987,8 +1086,13 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
     async searchRelatedSuggestions(
       videoId: string,
       limit: number,
-      mode: SearchMode = "music"
+      mode: SearchMode = "music",
+      lookupOptions?: YoutubeLookupOptions
     ): Promise<YoutubeSearchResult[]> {
+      if (!allowFallback(lookupOptions)) {
+        return [];
+      }
+
       const boundedLimit = Math.max(1, Math.min(25, limit));
       const results = await runYtdlpMixSuggestions(
         videoId,

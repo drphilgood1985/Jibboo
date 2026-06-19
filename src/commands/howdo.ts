@@ -33,7 +33,7 @@ export function buildHowdoMessage(
 
   const lines = [
     "Jibboo quick start:",
-    `- Queue music: ${HOWDO_COMMANDS[0]} and ${HOWDO_COMMANDS[2]} accept song text, YouTube links, Suno links, or other playable links. ${HOWDO_COMMANDS[1]} queues a video result and posts an embed.`,
+    `- Queue music: ${HOWDO_COMMANDS[0]} and ${HOWDO_COMMANDS[2]} accept song text, YouTube links, Spotify track links, Suno links, or other playable links. ${HOWDO_COMMANDS[1]} queues a video result and posts an embed.`,
     `- Playlist mode: ${HOWDO_COMMANDS[3]} starts compatible autoplay; \`/playlist off\` stops it.`,
     `- Playback: ${HOWDO_COMMANDS[4]}, ${HOWDO_COMMANDS[5]}, ${HOWDO_COMMANDS[9]}. ${HOWDO_COMMANDS[6]} stops playback, disconnects, clears the active queue, and stops playlist autoplay.`,
     `- Edit queue: ${HOWDO_COMMANDS[7]} removes the numbered queued song shown under Queue. The current song is not #1; Queue #1 is the next song.`,

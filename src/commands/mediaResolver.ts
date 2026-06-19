@@ -1,4 +1,8 @@
-import type { QueueableMedia } from "../integrations/types.js";
+import type {
+  QueueableMedia,
+  SpotifyTrack,
+  YoutubeSearchResult
+} from "../integrations/types.js";
 import type { CommandContext } from "../types/appCommand.js";
 
 export interface ResolveMediaResult {
@@ -76,10 +80,56 @@ function toDirectUrlMedia(url: URL): QueueableMedia {
   };
 }
 
+function toSpotifyMedia(
+  spotifyTrack: SpotifyTrack,
+  playbackResult: YoutubeSearchResult
+): QueueableMedia {
+  const media: QueueableMedia = {
+    title: spotifyTrack.title,
+    videoId: playbackResult.videoId,
+    url: spotifyTrack.pageUrl,
+    playbackUrl: playbackResult.playbackUrl ?? playbackResult.url,
+    channelTitle: spotifyTrack.artistName ?? playbackResult.channelTitle,
+    sourceName: "Spotify"
+  };
+  const thumbnailUrl = spotifyTrack.thumbnailUrl ?? playbackResult.thumbnailUrl;
+
+  if (playbackResult.durationSeconds !== undefined) {
+    media.durationSeconds = playbackResult.durationSeconds;
+  }
+
+  if (thumbnailUrl) {
+    media.thumbnailUrl = thumbnailUrl;
+  }
+
+  return media;
+}
+
 export async function resolveInputMedia(
   input: string,
   context: CommandContext
 ): Promise<ResolveMediaResult> {
+  const spotify = context.integrations.spotify;
+  if (spotify?.isSpotifyUrl(input)) {
+    const spotifyTrack = await spotify.resolveTrack(input);
+    if (!spotifyTrack) {
+      return {
+        media: null,
+        notFoundMessage:
+          "No Spotify track was found. Paste a Spotify track link, not an album or playlist link."
+      };
+    }
+
+    const playbackResult = await context.integrations.youtube.searchTopVideo(
+      spotifyTrack.searchQuery,
+      "music"
+    );
+    return {
+      media: playbackResult ? toSpotifyMedia(spotifyTrack, playbackResult) : null,
+      notFoundMessage: `No matching playable track was found for **${spotifyTrack.title}**.`
+    };
+  }
+
   const directUrl = extractFirstHttpUrl(input);
 
   if (directUrl && !isYoutubeUrl(directUrl)) {

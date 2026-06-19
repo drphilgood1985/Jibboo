@@ -9,14 +9,21 @@ import type { YoutubeSearchResult } from "../src/integrations/types.js";
 function result(
   title: string,
   videoId: string,
-  channelTitle = "Channel"
+  channelTitle = "Channel",
+  durationSeconds?: number
 ): YoutubeSearchResult {
-  return {
+  const searchResult: YoutubeSearchResult = {
     title,
     videoId,
     url: `https://music.youtube.com/watch?v=${videoId}`,
     channelTitle
   };
+
+  if (durationSeconds !== undefined) {
+    searchResult.durationSeconds = durationSeconds;
+  }
+
+  return searchResult;
 }
 
 describe("YouTube music search ranking", () => {
@@ -62,6 +69,18 @@ describe("YouTube music search ranking", () => {
     ]);
 
     expect(ranked.map((entry) => entry.videoId)).toEqual(["ren", "lyric", "fisher"]);
+  });
+
+  it("penalizes short duration outliers that can sound sped up", () => {
+    const ranked = rankMusicSearchResults("dynazty heartless madness", [
+      result("Heartless Madness - Dynazty", "short", "Lynic", 189),
+      result("Dynazty - Heartless Madness", "normal", "Music Uploads", 248),
+      result("Dynazty - Heartless Madness (Lyrics)", "lyrics", "Lyrics Channel", 240),
+      result("Dynazty - Heartless Madness", "alternate", "Rock Channel", 249)
+    ]);
+
+    const rankedIds = ranked.map((entry) => entry.videoId);
+    expect(rankedIds.indexOf("normal")).toBeLessThan(rankedIds.indexOf("short"));
   });
 
   it("extracts video ids from common YouTube link formats", () => {
@@ -123,5 +142,32 @@ describe("YouTube music search ranking", () => {
       channelTitle: "Exact Channel",
       sourceName: "YouTube"
     });
+  });
+
+  it("can skip slow yt-dlp fallback for nonessential lookups after quota errors", async () => {
+    const fetchSpy = vi.fn(async (_input: unknown) => ({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        error: {
+          message:
+            "Quota exceeded for quota metric 'Search Queries' and limit 'Search Queries per day'"
+        }
+      })
+    }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const service = createYoutubeService({ apiKey: "youtube-api-key" });
+
+    await expect(
+      service.searchTopVideo("slow recommendation", "music", { allowFallback: false })
+    ).resolves.toBeNull();
+    await expect(
+      service.searchSuggestions("another recommendation", 5, "music", {
+        allowFallback: false
+      })
+    ).resolves.toEqual([]);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });

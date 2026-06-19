@@ -11,6 +11,7 @@ import {
 import type { GuildQueueState, QueueStore, Track } from "../core/queueStore.js";
 import type {
   GeminiService,
+  YoutubeLookupOptions,
   YoutubeSearchResult,
   YoutubeService
 } from "../integrations/types.js";
@@ -29,6 +30,7 @@ const SUGGESTION_LIMIT = 5;
 const SUGGESTION_FETCH_LIMIT = 15;
 const LLM_SUGGESTION_QUERY_LIMIT = 8;
 const MAX_QUERY_LENGTH = 96;
+const FAST_LOOKUP_OPTIONS: YoutubeLookupOptions = { allowFallback: false };
 
 function extractVideoIdFromUrl(url: string): string | null {
   try {
@@ -328,7 +330,9 @@ export class ControlPanelController {
       try {
         const related = await this.youtubeService.searchRelatedSuggestions(
           seedVideoId,
-          SUGGESTION_FETCH_LIMIT
+          SUGGESTION_FETCH_LIMIT,
+          "music",
+          FAST_LOOKUP_OPTIONS
         );
         suggestions.push(...related);
       } catch (error) {
@@ -340,7 +344,9 @@ export class ControlPanelController {
       try {
         const fallback = await this.youtubeService.searchSuggestions(
           seedTrack.title,
-          SUGGESTION_FETCH_LIMIT
+          SUGGESTION_FETCH_LIMIT,
+          "music",
+          FAST_LOOKUP_OPTIONS
         );
         suggestions.push(...fallback);
       } catch (error) {
@@ -461,20 +467,27 @@ export class ControlPanelController {
         return [];
       }
 
-      const results = await Promise.all(
-        queries.map(async (query) => {
-          try {
-            return await this.youtubeService.searchTopVideo(query, "music");
-          } catch (error) {
-            console.error(`LLM query lookup failed for "${query}":`, error);
-            return null;
+      const results: YoutubeSearchResult[] = [];
+      for (const query of queries) {
+        try {
+          const result = await this.youtubeService.searchTopVideo(
+            query,
+            "music",
+            FAST_LOOKUP_OPTIONS
+          );
+          if (result) {
+            results.push(result);
           }
-        })
-      );
 
-      return results.filter(
-        (entry): entry is YoutubeSearchResult => entry !== null
-      );
+          if (results.length >= SUGGESTION_LIMIT) {
+            break;
+          }
+        } catch (error) {
+          console.error(`LLM query lookup failed for "${query}":`, error);
+        }
+      }
+
+      return results;
     } catch (error) {
       console.error("LLM suggestion generation failed:", error);
       return [];

@@ -2,13 +2,13 @@
 
 Discord music bot for "The Friend Zone".
 
-Jibboo supports slash commands for queueing YouTube Music-biased tracks, direct playable links, public Suno song links, queue control, Gemini-assisted guidance, and continuous autoplay by artist/genre.
+Jibboo supports slash commands for queueing YouTube Music-biased tracks, Spotify track links, direct playable links, public Suno song links, queue control, Gemini-assisted guidance, and continuous autoplay by artist/genre.
 
 ## Features
 
-- `/play <text-or-url>`: search YouTube Music or queue a playable link, then autoplay in voice.
+- `/play <text-or-url>`: search YouTube Music or queue a supported link, then autoplay in voice.
 - `/video <text-or-url>`: queue video result, post an embed, and play audio in voice.
-- `/playnext <text-or-url>`: search YouTube Music or queue a playable link after the current track.
+- `/playnext <text-or-url>`: search YouTube Music or queue a supported link after the current track.
 - `/playlist <artist-or-genre>`: enable endless compatible autoplay.
 - `/playlist off`: disable autoplay.
 - `/stop`: stop playback, disconnect from voice, clear current/upcoming tracks, and stop playlist autoplay.
@@ -37,7 +37,7 @@ Run commands in monitored channels, usually `#chat` and `#dj-jibboo`. Public bot
 - `/jibboo <instruction>`
 - `/howdo`
 
-`/play` and `/playnext` accept normal search text, direct YouTube links such as `https://www.youtube.com/watch?v=...`, public Suno links such as `https://suno.com/song/...`, and other direct playable HTTP links supported by yt-dlp/ffmpeg.
+`/play` and `/playnext` accept normal search text, direct YouTube links such as `https://www.youtube.com/watch?v=...`, Spotify track links such as `https://open.spotify.com/track/...`, public Suno links such as `https://suno.com/song/...`, and other direct playable HTTP links supported by yt-dlp/ffmpeg.
 
 ## Requirements
 
@@ -105,5 +105,6 @@ npm run dev
 ## Notes
 
 - If YouTube API quota is exhausted, Jibboo falls back to yt-dlp search.
+- Spotify track links are matched to YouTube Music for playback; Spotify albums and playlists are not expanded.
 - Suno queueing works through `/play` and `/playnext` with public Suno share/song URLs; it does not require a Suno API key.
 - Slash commands are registered on startup for the configured guild.
