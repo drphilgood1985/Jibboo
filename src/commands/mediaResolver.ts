@@ -122,7 +122,13 @@ export async function resolveInputMedia(
 
     const playbackResult = await context.integrations.youtube.searchTopVideo(
       spotifyTrack.searchQuery,
-      "music"
+      "music",
+      {
+        allowUnrequestedVariants: true,
+        expectedArtistName: spotifyTrack.artistName,
+        expectedTitle: spotifyTrack.title,
+        preferOfficialAudio: false
+      }
     );
     return {
       media: playbackResult ? toSpotifyMedia(spotifyTrack, playbackResult) : null,

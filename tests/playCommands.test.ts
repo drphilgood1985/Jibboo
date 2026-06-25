@@ -4,6 +4,7 @@ import { QueueStore } from "../src/core/queueStore.js";
 import { handleChatInputCommand } from "../src/discord/interactionHandler.js";
 import type {
   SpotifyTrack,
+  YoutubeLookupOptions,
   YoutubeSearchResult
 } from "../src/integrations/types.js";
 
@@ -85,7 +86,8 @@ function createContext(
   voicePlayback: ReturnType<typeof createVoicePlaybackStub>,
   searchTopVideo: (
     input: string,
-    mode?: "music" | "video"
+    mode?: "music" | "video",
+    options?: YoutubeLookupOptions
   ) => Promise<YoutubeSearchResult | null>,
   options: {
     spotify?: {
@@ -227,7 +229,13 @@ describe("/play and /playnext links", () => {
     expect(spotify.resolveTrack).toHaveBeenCalledWith(SPOTIFY_LINK);
     expect(searchTopVideo).toHaveBeenCalledWith(
       "Never Gonna Give You Up Rick Astley",
-      "music"
+      "music",
+      {
+        allowUnrequestedVariants: true,
+        expectedArtistName: "Rick Astley",
+        expectedTitle: "Never Gonna Give You Up",
+        preferOfficialAudio: false
+      }
     );
     expect(queueStore.getSnapshot("guild-1").current).toMatchObject({
       title: "Never Gonna Give You Up",

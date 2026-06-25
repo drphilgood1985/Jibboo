@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { existsSync } from "node:fs";
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { AutoplayController } from "./core/autoplayController.js";
 import { loadEnv } from "./config/env.js";
@@ -15,6 +16,19 @@ import { handleControlInteraction } from "./ui/controlInteractionHandler.js";
 import { ControlPanelController } from "./ui/controlPanel.js";
 
 const env = loadEnv();
+let ytdlpCookiesPath = env.ytdlpCookiesPath;
+if (!env.ytdlpCookiesPath) {
+  console.warn(
+    "YTDLP_COOKIES_PATH is not configured; age-restricted or account-gated YouTube playback may fail."
+  );
+} else if (!existsSync(env.ytdlpCookiesPath)) {
+  ytdlpCookiesPath = null;
+  console.warn(
+    `YTDLP_COOKIES_PATH is configured but not readable at ${env.ytdlpCookiesPath}; YouTube auth will not be used.`
+  );
+} else {
+  console.log(`Using yt-dlp cookies from ${env.ytdlpCookiesPath}.`);
+}
 const queueStore = new QueueStore();
 const integrations = {
   gemini: createGeminiService({
@@ -23,7 +37,7 @@ const integrations = {
   }),
   youtube: createYoutubeService({
     apiKey: env.youtubeApiKey,
-    ytdlpCookiesPath: env.ytdlpCookiesPath
+    ytdlpCookiesPath
   }),
   suno: createSunoService(),
   spotify: createSpotifyService()
@@ -69,7 +83,7 @@ voicePlayback = new VoicePlaybackController(
     await autoplay.handlePlaybackStateChange(guild, voicePlayback);
     await controlPanel.refreshForGuild(guild, env.postChannelId);
   },
-  env.ytdlpCookiesPath
+  ytdlpCookiesPath
 );
 
 client.once(Events.ClientReady, (readyClient) => {

@@ -47,6 +47,12 @@ interface YoutubeVideosResponse {
   };
 }
 
+interface YoutubeOembedResponse {
+  title?: string;
+  author_name?: string;
+  thumbnail_url?: string;
+}
+
 interface YtdlpSearchResult {
   id?: string;
   title?: string;
@@ -267,8 +273,23 @@ function tokenSet(value: string): Set<string> {
   return new Set(tokenizeSearchText(value));
 }
 
-function toMusicSearchQuery(query: string): string {
+function countMatchingTokens(tokens: string[], values: Array<string | null | undefined>): number {
+  if (tokens.length === 0) {
+    return 0;
+  }
+
+  const valueTokens = new Set(
+    values.flatMap((value) => (value ? tokenizeSearchText(value) : []))
+  );
+  return tokens.filter((token) => valueTokens.has(token)).length;
+}
+
+function toMusicSearchQuery(query: string, lookupOptions?: YoutubeLookupOptions): string {
   const normalized = query.replace(/\s+/g, " ").trim();
+  if (lookupOptions?.preferOfficialAudio === false) {
+    return normalized;
+  }
+
   if (/\b(?:official|audio|lyrics?|video|live|cover|remix|karaoke|instrumental)\b/i.test(normalized)) {
     return normalized;
   }
@@ -276,9 +297,13 @@ function toMusicSearchQuery(query: string): string {
   return `${normalized} official audio`;
 }
 
-function toSearchQuery(mode: SearchMode, query: string): string {
+function toSearchQuery(
+  mode: SearchMode,
+  query: string,
+  lookupOptions?: YoutubeLookupOptions
+): string {
   if (mode === "music") {
-    return toMusicSearchQuery(query);
+    return toMusicSearchQuery(query, lookupOptions);
   }
 
   return query.replace(/\s+/g, " ").trim();
@@ -292,7 +317,8 @@ function hasReactionOrCommentarySignal(result: YoutubeSearchResult): boolean {
 function scoreMusicResult(
   query: string,
   result: YoutubeSearchResult,
-  medianDurationSeconds: number | null = null
+  medianDurationSeconds: number | null = null,
+  lookupOptions: YoutubeLookupOptions = {}
 ): { blocked: boolean; score: number } {
   if (hasReactionOrCommentarySignal(result)) {
     return { blocked: true, score: Number.NEGATIVE_INFINITY };
@@ -304,6 +330,8 @@ function scoreMusicResult(
   const queryTokens = tokenizeSearchText(query);
   const titleTokens = tokenSet(result.title);
   const channelTokens = tokenSet(result.channelTitle);
+  const expectedArtistTokens = tokenizeSearchText(lookupOptions.expectedArtistName ?? "");
+  const expectedTitleTokens = tokenizeSearchText(lookupOptions.expectedTitle ?? "");
   let score = 0;
 
   if (/\bofficial\s+audio\b/i.test(result.title)) {
@@ -367,12 +395,35 @@ function scoreMusicResult(
     score -= (missingTokens / queryTokens.length) * 180;
   }
 
+  if (expectedTitleTokens.length > 0) {
+    const matchedTitleTokens = countMatchingTokens(expectedTitleTokens, [result.title]);
+    const titleMatchRatio = matchedTitleTokens / expectedTitleTokens.length;
+    score += titleMatchRatio * 110;
+    score -= (1 - titleMatchRatio) * 130;
+  }
+
+  if (expectedArtistTokens.length > 0) {
+    const matchedArtistTokens = countMatchingTokens(expectedArtistTokens, [
+      result.title,
+      result.channelTitle
+    ]);
+    const artistMatchRatio = matchedArtistTokens / expectedArtistTokens.length;
+
+    if (artistMatchRatio === 1) {
+      score += 260;
+    } else if (artistMatchRatio > 0) {
+      score += artistMatchRatio * 130;
+    } else {
+      score -= 260;
+    }
+  }
+
   for (const variant of VARIANT_PATTERNS) {
     if (!variant.pattern.test(result.title)) {
       continue;
     }
 
-    if (includesAnyToken(query, variant.queryTerms)) {
+    if (lookupOptions.allowUnrequestedVariants || includesAnyToken(query, variant.queryTerms)) {
       score += 20;
       continue;
     }
@@ -428,7 +479,8 @@ function medianDurationSeconds(results: YoutubeSearchResult[]): number | null {
 
 export function rankMusicSearchResults(
   query: string,
-  results: YoutubeSearchResult[]
+  results: YoutubeSearchResult[],
+  lookupOptions: YoutubeLookupOptions = {}
 ): YoutubeSearchResult[] {
   const medianDuration = medianDurationSeconds(results);
 
@@ -436,7 +488,7 @@ export function rankMusicSearchResults(
     .map((result, index) => ({
       index,
       result,
-      ...scoreMusicResult(query, result, medianDuration)
+      ...scoreMusicResult(query, result, medianDuration, lookupOptions)
     }))
     .filter((entry) => !entry.blocked)
     .sort((left, right) => {
@@ -452,13 +504,14 @@ export function rankMusicSearchResults(
 function cleanSearchResults(
   query: string,
   results: YoutubeSearchResult[],
-  mode: SearchMode
+  mode: SearchMode,
+  lookupOptions?: YoutubeLookupOptions
 ): YoutubeSearchResult[] {
   if (mode !== "music") {
     return results;
   }
 
-  return rankMusicSearchResults(query, results);
+  return rankMusicSearchResults(query, results, lookupOptions);
 }
 
 function toYoutubeResult(
@@ -566,12 +619,21 @@ function runYtdlpVideoLookup(
   });
 }
 
-function toYtdlpQuery(mode: SearchMode, query: string): string {
-  return toSearchQuery(mode, query);
+function toYtdlpQuery(
+  mode: SearchMode,
+  query: string,
+  lookupOptions?: YoutubeLookupOptions
+): string {
+  return toSearchQuery(mode, query, lookupOptions);
 }
 
-function ytdlpSearchTerm(mode: SearchMode, query: string, limit: number): string {
-  return `ytsearch${limit}:${toYtdlpQuery(mode, query)}`;
+function ytdlpSearchTerm(
+  mode: SearchMode,
+  query: string,
+  limit: number,
+  lookupOptions?: YoutubeLookupOptions
+): string {
+  return `ytsearch${limit}:${toYtdlpQuery(mode, query, lookupOptions)}`;
 }
 
 function isYoutubeQuotaError(error: unknown): boolean {
@@ -604,13 +666,18 @@ function runYtdlpSuggestions(
   query: string,
   limit: number,
   mode: SearchMode,
-  cookiesPath: string | null
+  cookiesPath: string | null,
+  lookupOptions?: YoutubeLookupOptions
 ): Promise<YoutubeSearchResult[]> {
   return new Promise((resolve, reject) => {
     const process = spawn(
       YTDLP_EXECUTABLE,
       ytdlpArgs(
-        ["--dump-single-json", "--no-playlist", ytdlpSearchTerm(mode, query, limit)],
+        [
+          "--dump-single-json",
+          "--no-playlist",
+          ytdlpSearchTerm(mode, query, limit, lookupOptions)
+        ],
         cookiesPath
       ),
       { stdio: ["ignore", "pipe", "pipe"] }
@@ -855,17 +922,44 @@ function mapApiVideoItem(
   return result;
 }
 
+function mapOembedVideoItem(
+  payload: YoutubeOembedResponse,
+  videoId: string
+): YoutubeSearchResult | null {
+  const title = payload.title?.trim();
+  const channelTitle = payload.author_name?.trim();
+
+  if (!title || !channelTitle) {
+    return null;
+  }
+
+  const result: YoutubeSearchResult = {
+    title,
+    videoId,
+    url: toWatchUrl(videoId),
+    channelTitle,
+    sourceName: "YouTube"
+  };
+
+  if (payload.thumbnail_url) {
+    result.thumbnailUrl = payload.thumbnail_url;
+  }
+
+  return result;
+}
+
 async function runYoutubeApiSearch(
   apiKey: string,
   query: string,
   maxResults: number,
-  mode: SearchMode
+  mode: SearchMode,
+  lookupOptions?: YoutubeLookupOptions
 ): Promise<YoutubeSearchResult[]> {
   const endpoint = new URL("https://www.googleapis.com/youtube/v3/search");
   endpoint.searchParams.set("part", "snippet");
   endpoint.searchParams.set("type", "video");
   endpoint.searchParams.set("maxResults", String(Math.max(1, Math.min(25, maxResults))));
-  endpoint.searchParams.set("q", toSearchQuery(mode, query));
+  endpoint.searchParams.set("q", toSearchQuery(mode, query, lookupOptions));
   endpoint.searchParams.set("key", apiKey);
 
   if (mode === "music") {
@@ -902,6 +996,22 @@ async function runYoutubeApiVideoLookup(
   }
 
   return mapApiVideoItem(payload.items?.[0], mode);
+}
+
+async function runYoutubeOembedVideoLookup(
+  videoId: string
+): Promise<YoutubeSearchResult | null> {
+  const endpoint = new URL("https://www.youtube.com/oembed");
+  endpoint.searchParams.set("url", toWatchUrl(videoId));
+  endpoint.searchParams.set("format", "json");
+
+  const response = await fetch(endpoint);
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as YoutubeOembedResponse;
+  return mapOembedVideoItem(payload, videoId);
 }
 
 export function createYoutubeService(options: YoutubeServiceOptions): YoutubeService {
@@ -942,8 +1052,17 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
         }
       } catch (error) {
         registerApiFailure(error);
-        console.error("YouTube Data API video lookup failed; falling back to yt-dlp:", error);
+        console.error("YouTube Data API video lookup failed; trying oEmbed fallback:", error);
       }
+    }
+
+    try {
+      const oembedResult = await runYoutubeOembedVideoLookup(videoId);
+      if (oembedResult) {
+        return oembedResult;
+      }
+    } catch (error) {
+      console.error("YouTube oEmbed video lookup failed; falling back to yt-dlp:", error);
     }
 
     if (!allowFallback(lookupOptions)) {
@@ -978,9 +1097,10 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           query,
           topResultFallbackLimit(mode),
           mode,
-          ytdlpCookiesPath
+          ytdlpCookiesPath,
+          lookupOptions
         );
-        return cleanSearchResults(query, fallbackResults, mode)[0] ?? null;
+        return cleanSearchResults(query, fallbackResults, mode, lookupOptions)[0] ?? null;
       }
 
       try {
@@ -988,9 +1108,10 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           apiKey,
           query,
           mode === "music" ? MUSIC_TOP_RESULT_LIMIT : 1,
-          mode
+          mode,
+          lookupOptions
         );
-        const rankedApiResults = cleanSearchResults(query, apiResults, mode);
+        const rankedApiResults = cleanSearchResults(query, apiResults, mode, lookupOptions);
         if (rankedApiResults.length > 0) {
           return rankedApiResults[0] ?? null;
         }
@@ -1003,9 +1124,10 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           query,
           topResultFallbackLimit(mode),
           mode,
-          ytdlpCookiesPath
+          ytdlpCookiesPath,
+          lookupOptions
         );
-        return cleanSearchResults(query, fallbackResults, mode)[0] ?? null;
+        return cleanSearchResults(query, fallbackResults, mode, lookupOptions)[0] ?? null;
       } catch (error) {
         registerApiFailure(error);
         if (!allowFallback(lookupOptions)) {
@@ -1018,9 +1140,10 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           query,
           topResultFallbackLimit(mode),
           mode,
-          ytdlpCookiesPath
+          ytdlpCookiesPath,
+          lookupOptions
         );
-        return cleanSearchResults(query, fallbackResults, mode)[0] ?? null;
+        return cleanSearchResults(query, fallbackResults, mode, lookupOptions)[0] ?? null;
       }
     },
 
@@ -1042,14 +1165,24 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           query,
           Math.min(fetchLimit, YTDLP_MUSIC_TOP_RESULT_LIMIT),
           mode,
-          ytdlpCookiesPath
+          ytdlpCookiesPath,
+          lookupOptions
         );
-        return cleanSearchResults(query, fallbackResults, mode).slice(0, boundedLimit);
+        return cleanSearchResults(query, fallbackResults, mode, lookupOptions).slice(
+          0,
+          boundedLimit
+        );
       }
 
       try {
-        const apiResults = await runYoutubeApiSearch(apiKey, query, fetchLimit, mode);
-        const rankedApiResults = cleanSearchResults(query, apiResults, mode);
+        const apiResults = await runYoutubeApiSearch(
+          apiKey,
+          query,
+          fetchLimit,
+          mode,
+          lookupOptions
+        );
+        const rankedApiResults = cleanSearchResults(query, apiResults, mode, lookupOptions);
         if (rankedApiResults.length > 0) {
           return rankedApiResults.slice(0, boundedLimit);
         }
@@ -1062,9 +1195,13 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           query,
           Math.min(fetchLimit, YTDLP_MUSIC_TOP_RESULT_LIMIT),
           mode,
-          ytdlpCookiesPath
+          ytdlpCookiesPath,
+          lookupOptions
         );
-        return cleanSearchResults(query, fallbackResults, mode).slice(0, boundedLimit);
+        return cleanSearchResults(query, fallbackResults, mode, lookupOptions).slice(
+          0,
+          boundedLimit
+        );
       } catch (error) {
         registerApiFailure(error);
         if (!allowFallback(lookupOptions)) {
@@ -1077,9 +1214,13 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           query,
           Math.min(fetchLimit, YTDLP_MUSIC_TOP_RESULT_LIMIT),
           mode,
-          ytdlpCookiesPath
+          ytdlpCookiesPath,
+          lookupOptions
         );
-        return cleanSearchResults(query, fallbackResults, mode).slice(0, boundedLimit);
+        return cleanSearchResults(query, fallbackResults, mode, lookupOptions).slice(
+          0,
+          boundedLimit
+        );
       }
     },
 
@@ -1100,7 +1241,7 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
         mode,
         ytdlpCookiesPath
       );
-      return cleanSearchResults("", results, mode).slice(0, boundedLimit);
+      return cleanSearchResults("", results, mode, lookupOptions).slice(0, boundedLimit);
     }
   };
 }

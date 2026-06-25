@@ -105,6 +105,7 @@ npm run dev
 ## Notes
 
 - If YouTube API quota is exhausted, Jibboo falls back to yt-dlp search.
+- For YouTube Premium or age-restricted playback, export YouTube cookies to `.secrets/youtube-cookies.txt` and set `YTDLP_COOKIES_PATH=/app/secrets/youtube-cookies.txt`.
 - Spotify track links are matched to YouTube Music for playback; Spotify albums and playlists are not expanded.
 - Suno queueing works through `/play` and `/playnext` with public Suno share/song URLs; it does not require a Suno API key.
 - Slash commands are registered on startup for the configured guild.

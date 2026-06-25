@@ -61,6 +61,54 @@ describe("YouTube music search ranking", () => {
     expect(ranked.map((entry) => entry.videoId)).toContain("cover");
   });
 
+  it("uses linked Spotify artist hints to prefer a cover over the original", () => {
+    const ranked = rankMusicSearchResults(
+      "Jolene The White Stripes",
+      [
+        result("Dolly Parton - Jolene (Official Audio)", "original", "Dolly Parton - Topic"),
+        result("The White Stripes - Jolene cover", "cover", "Fan Upload")
+      ],
+      {
+        allowUnrequestedVariants: true,
+        expectedArtistName: "The White Stripes",
+        expectedTitle: "Jolene"
+      }
+    );
+
+    expect(ranked.map((entry) => entry.videoId)).toEqual(["cover", "original"]);
+  });
+
+  it("can search Spotify-derived artist and title without adding official audio", async () => {
+    const fetchSpy = vi.fn(async (_input: unknown) => {
+      return {
+        ok: true,
+        json: async () => ({
+          items: [
+            {
+              id: {
+                videoId: "aaaaaaaaaaa"
+              },
+              snippet: {
+                title: "The White Stripes - Jolene cover",
+                channelTitle: "Fan Upload"
+              }
+            }
+          ]
+        })
+      };
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const service = createYoutubeService({ apiKey: "youtube-api-key" });
+    await service.searchTopVideo("Jolene The White Stripes", "music", {
+      allowFallback: false,
+      preferOfficialAudio: false
+    });
+
+    const requestUrl = new URL(String(fetchSpy.mock.calls[0]?.[0]));
+    expect(requestUrl.searchParams.get("q")).toBe("Jolene The White Stripes");
+  });
+
   it("prefers results that match the requested artist over unrelated official audio", () => {
     const ranked = rankMusicSearchResults("ren losing it", [
       result("FISHER - Losing It (Official Audio)", "fisher", "FISHER"),
@@ -140,6 +188,53 @@ describe("YouTube music search ranking", () => {
       videoId: "dQw4w9WgXcQ",
       url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
       channelTitle: "Exact Channel",
+      sourceName: "YouTube"
+    });
+  });
+
+  it("falls back to oEmbed metadata for direct links when API lookup is blocked", async () => {
+    const fetchSpy = vi.fn(async (input: unknown) => {
+      const requestUrl = new URL(String(input));
+      if (requestUrl.pathname === "/youtube/v3/videos") {
+        return {
+          ok: false,
+          status: 403,
+          json: async () => ({
+            error: {
+              message:
+                "Quota exceeded for quota metric 'Search Queries' and limit 'Search Queries per day'"
+            }
+          })
+        };
+      }
+
+      if (requestUrl.pathname === "/oembed") {
+        return {
+          ok: true,
+          json: async () => ({
+            title: "Y'all Motherfuckers Need Jesus",
+            author_name: "The Goddamn Gallows - Topic",
+            thumbnail_url: "https://i.ytimg.com/vi/YxjeFV7Up3E/hqdefault.jpg"
+          })
+        };
+      }
+
+      throw new Error(`Unexpected fetch: ${requestUrl.toString()}`);
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const service = createYoutubeService({ apiKey: "youtube-api-key" });
+    const resolved = await service.searchTopVideo(
+      "https://www.youtube.com/watch?v=YxjeFV7Up3E"
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(resolved).toMatchObject({
+      title: "Y'all Motherfuckers Need Jesus",
+      videoId: "YxjeFV7Up3E",
+      url: "https://www.youtube.com/watch?v=YxjeFV7Up3E",
+      channelTitle: "The Goddamn Gallows - Topic",
+      thumbnailUrl: "https://i.ytimg.com/vi/YxjeFV7Up3E/hqdefault.jpg",
       sourceName: "YouTube"
     });
   });

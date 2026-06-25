@@ -19,6 +19,10 @@ export interface YoutubeSearchResult extends QueueableMedia {
 
 export interface YoutubeLookupOptions {
   allowFallback?: boolean;
+  allowUnrequestedVariants?: boolean;
+  expectedArtistName?: string | null;
+  expectedTitle?: string | null;
+  preferOfficialAudio?: boolean;
 }
 
 export interface YoutubeService {
