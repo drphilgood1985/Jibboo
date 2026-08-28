@@ -72,8 +72,7 @@ export class VoicePlaybackController {
   constructor(
     private readonly queueStore: QueueStore,
     private readonly noListenerGraceSeconds: number,
-    private readonly onPlaybackStateChange?: (guildId: string) => Promise<void> | void,
-    private readonly ytdlpCookiesPath: string | null = null
+    private readonly onPlaybackStateChange?: (guildId: string) => Promise<void> | void
   ) {}
 
   hasSession(guildId: string): boolean {
@@ -216,7 +215,6 @@ export class VoicePlaybackController {
     const ytdlpArgs = buildYtdlpArgs(
       [
         "--no-playlist",
-        ...(this.ytdlpCookiesPath ? ["--cookies", this.ytdlpCookiesPath] : []),
         "--format",
         "bestaudio[acodec!=none]/bestaudio/best[acodec!=none]/best",
         "--output",

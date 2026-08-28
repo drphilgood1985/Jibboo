@@ -70,7 +70,7 @@ Variables:
 - `GEMINI_API_KEY` (required)
 - `GEMINI_MODEL` (optional, default `gemini-2.5-flash`)
 - `WATCH_TOGETHER_APPLICATION_ID` (optional)
-- `YTDLP_COOKIES_PATH` (optional, for authenticated yt-dlp requests)
+- `YTDLP_AUTO_UPDATE` (optional, default `1`; set to `0` to skip the Docker startup yt-dlp update check)
 - `YTDLP_PATH` (optional, override yt-dlp executable path)
 - `FFMPEG_PATH` (optional, override ffmpeg executable path)
 - `QUEUE_LIMIT` (optional, default `50`)
@@ -87,6 +87,8 @@ Check logs:
 ```bash
 docker logs -f jibboo
 ```
+
+The Docker container checks for a newer `yt-dlp` binary on startup so YouTube playback fixes can be picked up without rebuilding the image. Set `YTDLP_AUTO_UPDATE=0` to disable this behavior.
 
 Stop:
 
@@ -105,7 +107,6 @@ npm run dev
 ## Notes
 
 - If YouTube API quota is exhausted, Jibboo falls back to yt-dlp search.
-- For YouTube Premium or age-restricted playback, export YouTube cookies to `.secrets/youtube-cookies.txt` and set `YTDLP_COOKIES_PATH=/app/secrets/youtube-cookies.txt`.
 - Spotify track links are matched to YouTube Music for playback; Spotify albums and playlists are not expanded.
 - Suno queueing works through `/play` and `/playnext` with public Suno share/song URLs; it does not require a Suno API key.
 - Slash commands are registered on startup for the configured guild.

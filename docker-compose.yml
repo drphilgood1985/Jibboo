@@ -10,4 +10,3 @@ services:
         required: false
     volumes:
       - ./data:/app/data
-      - ./.secrets:/app/secrets:ro

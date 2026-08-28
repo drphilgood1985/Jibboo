@@ -10,7 +10,6 @@ type SearchMode = "music" | "video";
 
 export interface YoutubeServiceOptions {
   apiKey: string;
-  ytdlpCookiesPath?: string | null;
 }
 
 interface YoutubeSearchItem {
@@ -549,13 +548,12 @@ function toYoutubeResult(
 
 function runYtdlpVideoLookup(
   videoId: string,
-  mode: SearchMode,
-  cookiesPath: string | null
+  mode: SearchMode
 ): Promise<YoutubeSearchResult | null> {
   return new Promise((resolve, reject) => {
     const process = spawn(
       YTDLP_EXECUTABLE,
-      ytdlpArgs(["--dump-single-json", "--no-playlist", toWatchUrl(videoId)], cookiesPath),
+      buildYtdlpArgs(["--dump-single-json", "--no-playlist", toWatchUrl(videoId)]),
       { stdio: ["ignore", "pipe", "pipe"] }
     );
 
@@ -642,18 +640,6 @@ function isYoutubeQuotaError(error: unknown): boolean {
   return normalized.includes("quota");
 }
 
-function withCookiesArgs(args: string[], cookiesPath: string | null): string[] {
-  if (!cookiesPath) {
-    return args;
-  }
-
-  return ["--cookies", cookiesPath, ...args];
-}
-
-function ytdlpArgs(args: string[], cookiesPath: string | null): string[] {
-  return buildYtdlpArgs(withCookiesArgs(args, cookiesPath));
-}
-
 function allowFallback(options: YoutubeLookupOptions | undefined): boolean {
   return options?.allowFallback ?? true;
 }
@@ -666,20 +652,16 @@ function runYtdlpSuggestions(
   query: string,
   limit: number,
   mode: SearchMode,
-  cookiesPath: string | null,
   lookupOptions?: YoutubeLookupOptions
 ): Promise<YoutubeSearchResult[]> {
   return new Promise((resolve, reject) => {
     const process = spawn(
       YTDLP_EXECUTABLE,
-      ytdlpArgs(
-        [
-          "--dump-single-json",
-          "--no-playlist",
-          ytdlpSearchTerm(mode, query, limit, lookupOptions)
-        ],
-        cookiesPath
-      ),
+      buildYtdlpArgs([
+        "--dump-single-json",
+        "--no-playlist",
+        ytdlpSearchTerm(mode, query, limit, lookupOptions)
+      ]),
       { stdio: ["ignore", "pipe", "pipe"] }
     );
 
@@ -746,22 +728,18 @@ function runYtdlpSuggestions(
 function runYtdlpMixRequest(
   mixUrl: string,
   limit: number,
-  mode: SearchMode,
-  cookiesPath: string | null
+  mode: SearchMode
 ): Promise<YoutubeSearchResult[]> {
   return new Promise((resolve, reject) => {
     const process = spawn(
       YTDLP_EXECUTABLE,
-      ytdlpArgs(
-        [
-          "--flat-playlist",
-          "--dump-single-json",
-          "--playlist-end",
-          String(Math.max(2, Math.min(50, limit + 1))),
-          mixUrl
-        ],
-        cookiesPath
-      ),
+      buildYtdlpArgs([
+        "--flat-playlist",
+        "--dump-single-json",
+        "--playlist-end",
+        String(Math.max(2, Math.min(50, limit + 1))),
+        mixUrl
+      ]),
       { stdio: ["ignore", "pipe", "pipe"] }
     );
 
@@ -829,8 +807,7 @@ function runYtdlpMixRequest(
 async function runYtdlpMixSuggestions(
   videoId: string,
   limit: number,
-  mode: SearchMode,
-  cookiesPath: string | null
+  mode: SearchMode
 ): Promise<YoutubeSearchResult[]> {
   const mixUrls =
     mode === "music"
@@ -842,7 +819,7 @@ async function runYtdlpMixSuggestions(
 
   for (const mixUrl of mixUrls) {
     try {
-      const results = await runYtdlpMixRequest(mixUrl, limit, mode, cookiesPath);
+      const results = await runYtdlpMixRequest(mixUrl, limit, mode);
       if (results.length > 0) {
         return results;
       }
@@ -1016,7 +993,6 @@ async function runYoutubeOembedVideoLookup(
 
 export function createYoutubeService(options: YoutubeServiceOptions): YoutubeService {
   const apiKey = options.apiKey;
-  const ytdlpCookiesPath = options.ytdlpCookiesPath ?? null;
   let apiBackoffUntil = 0;
 
   function useApiNow(): boolean {
@@ -1070,7 +1046,7 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
     }
 
     try {
-      return await runYtdlpVideoLookup(videoId, mode, ytdlpCookiesPath);
+      return await runYtdlpVideoLookup(videoId, mode);
     } catch (error) {
       console.error("yt-dlp video lookup failed for YouTube URL:", error);
       return null;
@@ -1097,7 +1073,6 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           query,
           topResultFallbackLimit(mode),
           mode,
-          ytdlpCookiesPath,
           lookupOptions
         );
         return cleanSearchResults(query, fallbackResults, mode, lookupOptions)[0] ?? null;
@@ -1124,7 +1099,6 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           query,
           topResultFallbackLimit(mode),
           mode,
-          ytdlpCookiesPath,
           lookupOptions
         );
         return cleanSearchResults(query, fallbackResults, mode, lookupOptions)[0] ?? null;
@@ -1140,7 +1114,6 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           query,
           topResultFallbackLimit(mode),
           mode,
-          ytdlpCookiesPath,
           lookupOptions
         );
         return cleanSearchResults(query, fallbackResults, mode, lookupOptions)[0] ?? null;
@@ -1165,7 +1138,6 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           query,
           Math.min(fetchLimit, YTDLP_MUSIC_TOP_RESULT_LIMIT),
           mode,
-          ytdlpCookiesPath,
           lookupOptions
         );
         return cleanSearchResults(query, fallbackResults, mode, lookupOptions).slice(
@@ -1195,7 +1167,6 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           query,
           Math.min(fetchLimit, YTDLP_MUSIC_TOP_RESULT_LIMIT),
           mode,
-          ytdlpCookiesPath,
           lookupOptions
         );
         return cleanSearchResults(query, fallbackResults, mode, lookupOptions).slice(
@@ -1214,7 +1185,6 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
           query,
           Math.min(fetchLimit, YTDLP_MUSIC_TOP_RESULT_LIMIT),
           mode,
-          ytdlpCookiesPath,
           lookupOptions
         );
         return cleanSearchResults(query, fallbackResults, mode, lookupOptions).slice(
@@ -1238,8 +1208,7 @@ export function createYoutubeService(options: YoutubeServiceOptions): YoutubeSer
       const results = await runYtdlpMixSuggestions(
         videoId,
         boundedLimit,
-        mode,
-        ytdlpCookiesPath
+        mode
       );
       return cleanSearchResults("", results, mode, lookupOptions).slice(0, boundedLimit);
     }

@@ -48,11 +48,6 @@ function parseOptional(value: string | undefined, fallback: string): string {
   return trimmed && trimmed.length > 0 ? trimmed : fallback;
 }
 
-function parseOptionalPath(value: string | undefined): string | null {
-  const trimmed = value?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : null;
-}
-
 function parseSnowflake(key: string, value: string): string {
   if (!DISCORD_SNOWFLAKE_PATTERN.test(value)) {
     throw new Error(`${key} must be a numeric Discord ID`);
@@ -89,7 +84,6 @@ export interface AppEnv {
   geminiApiKey: string;
   geminiModel: string;
   watchTogetherApplicationId: string;
-  ytdlpCookiesPath: string | null;
   queueLimit: number;
   noListenerGraceSeconds: number;
 }
@@ -138,7 +132,6 @@ export function loadEnv(): AppEnv {
         DEFAULT_WATCH_TOGETHER_APPLICATION_ID
       )
     ),
-    ytdlpCookiesPath: parseOptionalPath(process.env.YTDLP_COOKIES_PATH),
     queueLimit: parseQueueLimit(process.env.QUEUE_LIMIT),
     noListenerGraceSeconds: parsePositiveInt(
       "NO_LISTENER_GRACE_SECONDS",
