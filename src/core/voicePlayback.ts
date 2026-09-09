@@ -128,6 +128,7 @@ export class VoicePlaybackController {
       adapterCreator: guild.voiceAdapterCreator,
       selfDeaf: false
     });
+    this.bindConnectionEvents(guild.id, connection);
 
     await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
     connection.subscribe(player);
@@ -421,6 +422,12 @@ export class VoicePlaybackController {
     session.player.on("error", (error) => {
       console.error("Audio player error:", error);
       void this.handleIdle(guildId);
+    });
+  }
+
+  private bindConnectionEvents(guildId: string, connection: VoiceConnection): void {
+    connection.on("error", (error) => {
+      console.error(`Voice connection error for guild ${guildId}:`, error);
     });
   }
 

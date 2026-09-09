@@ -29,7 +29,7 @@ class MockAudioPlayer extends EventEmitter {
   unpause = vi.fn(() => true);
 }
 
-class MockVoiceConnection {
+class MockVoiceConnection extends EventEmitter {
   subscribe = vi.fn();
   destroy = vi.fn();
 }
@@ -42,6 +42,7 @@ class MockChildProcess extends EventEmitter {
 }
 
 const createdPlayers: MockAudioPlayer[] = [];
+const createdConnections: MockVoiceConnection[] = [];
 const createdProcesses: MockChildProcess[] = [];
 
 vi.mock("node:child_process", () => {
@@ -79,7 +80,11 @@ vi.mock("@discordjs/voice", async () => {
       createdPlayers.push(player);
       return player;
     }),
-    joinVoiceChannel: vi.fn(() => new MockVoiceConnection() as unknown as VoiceConnection),
+    joinVoiceChannel: vi.fn(() => {
+      const connection = new MockVoiceConnection();
+      createdConnections.push(connection);
+      return connection as unknown as VoiceConnection;
+    }),
     entersState: vi.fn(async (target: unknown) => target),
     createAudioResource: vi.fn(() => ({
       volume: {
@@ -92,6 +97,7 @@ vi.mock("@discordjs/voice", async () => {
 describe("VoicePlaybackController", () => {
   beforeEach(() => {
     createdPlayers.length = 0;
+    createdConnections.length = 0;
     createdProcesses.length = 0;
     vi.clearAllMocks();
   });
@@ -126,6 +132,39 @@ describe("VoicePlaybackController", () => {
     expect(started).toBe(false);
     expect(player.stop).toHaveBeenCalledTimes(1);
     expect(onPlaybackStateChange).toHaveBeenCalledWith(guild.id);
+  });
+
+  it("logs voice connection errors instead of leaving them unhandled", async () => {
+    const queueStore = new QueueStore();
+    const controller = new VoicePlaybackController(queueStore, 30);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const guild = {
+      id: "guild-1",
+      voiceAdapterCreator: {}
+    } as any;
+
+    const voiceChannel = {
+      id: "voice-1"
+    } as any;
+
+    await controller.connect(guild, voiceChannel);
+
+    const connection = createdConnections[0];
+    if (!connection) {
+      throw new Error("Expected a voice connection instance to be created");
+    }
+
+    const error = Object.assign(new Error("getaddrinfo EAI_AGAIN discord.media"), {
+      code: "EAI_AGAIN"
+    });
+
+    expect(() => {
+      connection.emit("error", error);
+    }).not.toThrow();
+    expect(consoleError).toHaveBeenCalledWith("Voice connection error for guild guild-1:", error);
+
+    consoleError.mockRestore();
   });
 
   it("keeps advancing after manually skipping to the next track", async () => {
