@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { spawn } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { AudioPlayerStatus, type VoiceConnection } from "@discordjs/voice";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -100,6 +101,17 @@ describe("VoicePlaybackController", () => {
     createdConnections.length = 0;
     createdProcesses.length = 0;
     vi.clearAllMocks();
+  });
+
+  it("lets ffmpeg seek Suno video URLs directly to read the audio index", () => {
+    const controller = new VoicePlaybackController(new QueueStore(), 30);
+    const url = "https://cdn1.suno.ai/f64e23e8-e32d-4852-a76d-2fd52be24110.mp4";
+    const { pipeline } = (controller as any).createTrackResource("guild-1", url, 30);
+    expect(pipeline.ytdlpProcess).toBeNull();
+    expect(spawn).toHaveBeenCalledTimes(1);
+    const args = vi.mocked(spawn).mock.calls[0]![1] as string[];
+    expect(args[args.indexOf("-i") + 1]).toBe(url);
+    expect(args).toContain("0:a:0");
   });
 
   it("notifies playback state when interrupting into an empty queue", async () => {

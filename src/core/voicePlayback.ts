@@ -225,7 +225,9 @@ export class VoicePlaybackController {
       { includeFfmpegLocation: true }
     );
 
-    const ytdlpProcess = spawn(YTDLP_EXECUTABLE, ytdlpArgs, {
+    // Suno MP4 files need HTTP seeking to read their trailing media index.
+    const directSunoVideo = /^https:\/\/cdn1\.suno\.ai\/[0-9a-f-]+\.mp4$/i.test(playbackUrl);
+    const ytdlpProcess = directSunoVideo ? null : spawn(YTDLP_EXECUTABLE, ytdlpArgs, {
       stdio: ["ignore", "pipe", "pipe"]
     });
 
@@ -236,7 +238,7 @@ export class VoicePlaybackController {
         "-loglevel",
         "error",
         "-i",
-        "pipe:0",
+        directSunoVideo ? playbackUrl : "pipe:0",
         "-vn",
         "-sn",
         "-dn",
@@ -261,31 +263,31 @@ export class VoicePlaybackController {
 
     const pipeline: TrackPipeline = { ytdlpProcess, ffmpegProcess };
 
-    if (!ytdlpProcess.stdout || !ffmpegProcess.stdin) {
+    if ((!directSunoVideo && !ytdlpProcess?.stdout) || !ffmpegProcess.stdin) {
       this.stopPipeline(pipeline);
       throw new Error("Failed to initialize yt-dlp/ffmpeg pipeline streams.");
     }
 
-    ytdlpProcess.stdout.pipe(ffmpegProcess.stdin);
-    ytdlpProcess.stdout.on("error", (error) => {
+    ytdlpProcess?.stdout?.pipe(ffmpegProcess.stdin);
+    ytdlpProcess?.stdout?.on("error", (error) => {
       handlePipelineStreamError("yt-dlp stdout", error);
     });
     ffmpegProcess.stdin.on("error", (error) => {
       handlePipelineStreamError("ffmpeg stdin", error);
     });
 
-    ytdlpProcess.on("error", (error) => {
+    ytdlpProcess?.on("error", (error) => {
       console.error("yt-dlp process error:", error);
     });
 
-    ytdlpProcess.stderr?.on("data", (chunk: Buffer) => {
+    ytdlpProcess?.stderr?.on("data", (chunk: Buffer) => {
       const line = chunk.toString().trim();
       if (line.length > 0) {
         console.log(`[yt-dlp:${guildId}] ${line}`);
       }
     });
 
-    ytdlpProcess.on("close", (code, signal) => {
+    ytdlpProcess?.on("close", (code, signal) => {
       if (code !== 0) {
         console.error(`yt-dlp exited with code ${code}, signal ${signal ?? "none"}`);
       }

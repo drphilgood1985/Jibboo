@@ -39,6 +39,7 @@ export function buildHowdoMessage(
     `- Edit queue: ${HOWDO_COMMANDS[7]} removes the numbered queued song shown under Queue. The current song is not #1; Queue #1 is the next song.`,
     `- Volume: ${HOWDO_COMMANDS[8]}.`,
     `- Assistant: ${HOWDO_COMMANDS[10]}.`,
+    "- Private catch-up: DM me `summary` for the last 150 messages or last 24 hours of #social-chat, whichever includes more messages, including readable image/meme context.",
     "- Control embed: buttons for Previous/Pause/Resume/Next/Volume, plus Suggestions to queue a recommended track next.",
     "- Default volume: 20%.",
     "",

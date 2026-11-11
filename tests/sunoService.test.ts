@@ -16,6 +16,30 @@ describe("Suno service", () => {
     expect(isSunoUrl("https://www.youtube.com/watch?v=abc")).toBe(false);
   });
 
+  it("uses the video audio when Suno disables the standalone MP3", async () => {
+    const audioUrl = `https://cdn1.suno.ai/${SONG_ID}.mp4`;
+    vi.stubGlobal("fetch", vi.fn(async (url: unknown, init?: RequestInit) => {
+      const requestUrl = String(url);
+      if (requestUrl === `https://cdn1.suno.ai/${SONG_ID}.mp3`) {
+        return new Response(null, { status: 403 });
+      }
+      if (requestUrl === audioUrl && init?.method === "HEAD") {
+        return new Response(null, { headers: { "content-type": "video/mp4" } });
+      }
+      if (requestUrl.startsWith("https://studio-api-prod.suno.com/api/oembed")) {
+        return Response.json({ title: "The Four Cardinals" });
+      }
+      throw new Error(`Unexpected fetch: ${requestUrl}`);
+    }));
+    expect(await createSunoService().resolveSong(`https://suno.com/song/${SONG_ID}`))
+      .toMatchObject({ songId: SONG_ID, playbackUrl: audioUrl, title: "The Four Cardinals" });
+  });
+
+  it("does not resolve unavailable songs to unrelated page audio", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })));
+    expect(await createSunoService().resolveSong(`https://suno.com/song/${SONG_ID}`)).toBeNull();
+  });
+
   it("resolves a public Suno song URL to playable audio metadata", async () => {
     const fetchMock = vi.fn(async (url: unknown, init?: RequestInit) => {
       const requestUrl = String(url);

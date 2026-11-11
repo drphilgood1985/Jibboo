@@ -159,7 +159,7 @@ async function fetchOembedTitle(songId: string): Promise<string | null> {
   return getRecordString(parsed, "title");
 }
 
-async function isPlayableAudioUrl(url: string): Promise<boolean> {
+async function isPlayableAudioUrl(url: string, allowVideo = false): Promise<boolean> {
   const response = await fetchWithTimeout(url, {
     method: "HEAD",
     redirect: "follow"
@@ -170,7 +170,7 @@ async function isPlayableAudioUrl(url: string): Promise<boolean> {
   }
 
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-  return contentType.startsWith("audio/");
+  return contentType.startsWith("audio/") || (allowVideo && contentType.startsWith("video/mp4"));
 }
 
 async function resolveSongId(input: string): Promise<string | null> {
@@ -215,9 +215,11 @@ export function createSunoService(): SunoService {
         return null;
       }
 
-      const audioUrl = audioUrlForSong(songId);
+      let audioUrl = audioUrlForSong(songId);
       if (!(await isPlayableAudioUrl(audioUrl))) {
-        return null;
+        // Suno may disable the standalone MP3 while its video still carries playable audio.
+        audioUrl = `https://cdn1.suno.ai/${songId}.mp4`;
+        if (!(await isPlayableAudioUrl(audioUrl, true))) return null;
       }
 
       let oembedTitle: string | null = null;

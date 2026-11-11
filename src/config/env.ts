@@ -1,5 +1,6 @@
 const DEFAULT_QUEUE_LIMIT = 50;
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+const DEFAULT_SUMMARY_CHANNEL_ID = "1375870076753809448";
 const DEFAULT_NO_LISTENER_GRACE_SECONDS = 15;
 const DEFAULT_WATCH_TOGETHER_APPLICATION_ID = "880218394199220334";
 const DISCORD_SNOWFLAKE_PATTERN = /^\d{17,20}$/;
@@ -80,6 +81,7 @@ export interface AppEnv {
   controlChannelId: string;
   postChannelId: string;
   commandChannelIds: string[];
+  summaryChannelId: string;
   youtubeApiKey: string;
   geminiApiKey: string;
   geminiModel: string;
@@ -122,6 +124,10 @@ export function loadEnv(): AppEnv {
     controlChannelId,
     postChannelId,
     commandChannelIds,
+    summaryChannelId: parseSnowflake(
+      "SUMMARY_CHANNEL_ID",
+      parseOptional(process.env.SUMMARY_CHANNEL_ID, DEFAULT_SUMMARY_CHANNEL_ID)
+    ),
     youtubeApiKey: readRequired("YOUTUBE_API_KEY"),
     geminiApiKey: readRequired("GEMINI_API_KEY"),
     geminiModel: parseOptional(process.env.GEMINI_MODEL, DEFAULT_GEMINI_MODEL),

@@ -1,5 +1,11 @@
+export interface GeminiImage {
+  mimeType: string;
+  data: string;
+  label: string;
+}
+
 export interface GeminiService {
-  generateReply: (instruction: string) => Promise<string>;
+  generateReply: (instruction: string, images?: readonly GeminiImage[]) => Promise<string>;
 }
 
 export interface QueueableMedia {

@@ -1,4 +1,4 @@
-import type { GeminiService } from "./types.js";
+import type { GeminiImage, GeminiService } from "./types.js";
 
 interface GeminiCandidate {
   content?: {
@@ -117,7 +117,8 @@ function pickFallbackModel(
 async function requestGenerateContent(
   apiKey: string,
   model: string,
-  instruction: string
+  instruction: string,
+  images: readonly GeminiImage[]
 ): Promise<string> {
   const response = await fetch(buildGenerateUrl(apiKey, model), {
     method: "POST",
@@ -127,10 +128,17 @@ async function requestGenerateContent(
     body: JSON.stringify({
       contents: [
         {
-          parts: [{ text: instruction }]
+          parts: [
+            { text: instruction },
+            ...images.flatMap((image) => [
+              { text: image.label },
+              { inlineData: { mimeType: image.mimeType, data: image.data } }
+            ])
+          ]
         }
       ]
-    })
+    }),
+    signal: AbortSignal.timeout(90_000)
   });
 
   const payload = await parseJson<GeminiResponse>(response);
@@ -145,13 +153,17 @@ async function requestGenerateContent(
     .join("")
     .trim();
 
-  return text && text.length > 0
-    ? text
-    : "I couldn't produce a response for that request.";
+  if (!text) {
+    throw new Error("Gemini returned no text response.");
+  }
+
+  return text;
 }
 
 async function listGenerateModels(apiKey: string): Promise<string[]> {
-  const response = await fetch(buildListModelsUrl(apiKey));
+  const response = await fetch(buildListModelsUrl(apiKey), {
+    signal: AbortSignal.timeout(15_000)
+  });
   const payload = await parseJson<GeminiModelListResponse>(response);
 
   if (!response.ok) {
@@ -208,9 +220,9 @@ export function createGeminiService(options: GeminiServiceOptions): GeminiServic
   }
 
   return {
-    async generateReply(instruction: string): Promise<string> {
+    async generateReply(instruction: string, images: readonly GeminiImage[] = []): Promise<string> {
       try {
-        return await requestGenerateContent(options.apiKey, activeModel, instruction);
+        return await requestGenerateContent(options.apiKey, activeModel, instruction, images);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (!isModelUnavailableError(message)) {
@@ -224,7 +236,7 @@ export function createGeminiService(options: GeminiServiceOptions): GeminiServic
 
         activeModel = fallbackModel;
         console.warn(`Gemini model fallback activated: using ${activeModel}`);
-        return requestGenerateContent(options.apiKey, activeModel, instruction);
+        return requestGenerateContent(options.apiKey, activeModel, instruction, images);
       }
     }
   };

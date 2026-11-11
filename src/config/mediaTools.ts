@@ -2,7 +2,6 @@ import { accessSync, constants as fsConstants } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const ffmpegStaticPath = require("ffmpeg-static") as string | null;
 const { YOUTUBE_DL_PATH } = require("youtube-dl-exec/src/constants") as {
   YOUTUBE_DL_PATH?: string;
 };
@@ -45,7 +44,7 @@ export const YTDLP_EXECUTABLE = resolveExecutable(
 
 export const FFMPEG_EXECUTABLE = resolveExecutable(
   "FFMPEG_PATH",
-  ffmpegStaticPath,
+  null,
   "ffmpeg"
 );
 

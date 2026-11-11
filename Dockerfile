@@ -1,4 +1,4 @@
-FROM node:22-slim
+FROM node:26.13.0-slim
 
 WORKDIR /app
 
@@ -14,6 +14,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
+RUN npm install --global npm@12.2.2
 RUN npm ci
 
 COPY tsconfig.json ./

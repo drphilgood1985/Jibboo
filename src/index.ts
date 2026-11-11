@@ -1,10 +1,11 @@
 import "dotenv/config";
-import { Client, Events, GatewayIntentBits } from "discord.js";
+import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
 import { AutoplayController } from "./core/autoplayController.js";
 import { loadEnv } from "./config/env.js";
 import { QueueStore } from "./core/queueStore.js";
 import { VoicePlaybackController } from "./core/voicePlayback.js";
 import { handleChatInputCommand } from "./discord/interactionHandler.js";
+import { createDirectMessageHandler } from "./discord/directMessageHandler.js";
 import { routePublicRepliesToChannel } from "./discord/interactionReplyRouter.js";
 import { registerGuildCommands } from "./discord/registerGuildCommands.js";
 import { createGeminiService } from "./integrations/geminiService.js";
@@ -48,8 +49,20 @@ const PANEL_REFRESH_COMMANDS = new Set([
 ]);
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.DirectMessages
+  ],
+  // Message Content must be enabled in the Developer Portal for REST history;
+  // DM events don't need the privileged Gateway intent to receive their content.
+  partials: [Partials.Channel]
 });
+client.on(Events.MessageCreate, createDirectMessageHandler({
+  guildId: env.discordGuildId,
+  summaryChannelId: env.summaryChannelId,
+  gemini: integrations.gemini
+}));
 let voicePlayback: VoicePlaybackController | null = null;
 
 voicePlayback = new VoicePlaybackController(
