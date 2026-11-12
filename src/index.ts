@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
+import { ApplicationFlagsBitField, Client, Events, GatewayIntentBits, Partials } from "discord.js";
 import { AutoplayController } from "./core/autoplayController.js";
 import { loadEnv } from "./config/env.js";
 import { QueueStore } from "./core/queueStore.js";
@@ -85,6 +85,13 @@ voicePlayback = new VoicePlaybackController(
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
+  console.log(`Node.js ${process.version}; private DM summary handler active for channel ${env.summaryChannelId}.`);
+  if (!readyClient.application.flags.any([
+    ApplicationFlagsBitField.Flags.GatewayMessageContent,
+    ApplicationFlagsBitField.Flags.GatewayMessageContentLimited
+  ])) {
+    console.warn("Private summaries require Message Content Intent to be enabled in the Discord Developer Portal.");
+  }
 });
 
 client.on("interactionCreate", async (interaction) => {
